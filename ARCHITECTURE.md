@@ -28,7 +28,7 @@ Because the server does not depend on Electron, `npm run server` runs it under p
 
 | Choice | Reason |
 | --- | --- |
-| `node:sqlite` instead of `better-sqlite3` | It is built into Node 22.5+ and into the Node that ships inside Electron 39, so there is no native module to compile or rebuild for Electron. It is synchronous, which makes every request atomic without locking code. Node prints an "experimental feature" warning for it on startup; that is expected. |
+| `node:sqlite` instead of `better-sqlite3` | It is built into Node 22.5+ and into the Node that ships inside Electron 44, so there is no native module to compile or rebuild for Electron. It is synchronous, which makes every request atomic without locking code. Node prints an "experimental feature" warning for it on startup; that is expected. |
 | Vanilla ES modules, no bundler | The pages are small. No build step means nothing to break on the day of the event, and what is on disk is exactly what the browser runs. |
 | REST for writes, WebSocket only for notifications | A score save needs a definite success or failure the judge's screen can show; HTTP gives that for free. The socket only says "something changed", so a dropped socket can never lose a score. |
 | Judges use a browser, not an installed client | Works on any tablet, phone or laptop that can join the Wi-Fi. |
@@ -40,10 +40,15 @@ perangat-tabulation/
 ├─ package.json
 ├─ README.md
 ├─ ARCHITECTURE.md
+├─ DEPLOYMENT.md            Installing, network, firewall, backup and restore
+├─ CHANGELOG.md
+├─ docs/
+│  ├─ TABULATOR_GUIDE.md    Event-day runbook for the tabulator
+│  └─ JUDGE_GUIDE.md        One-page handout for judges
 ├─ scripts/
 │  ├─ start.js              Launches Electron (clears ELECTRON_RUN_AS_NODE first)
 │  ├─ server.js             Runs the server without Electron
-│  └─ ensure-electron.js    postinstall: repairs a half-finished Electron install
+│  └─ benchmark.js          Load test (npm run bench)
 ├─ src/
 │  ├─ main/
 │  │  ├─ main.js            Electron main: starts the server, opens the window, PDF export
@@ -68,7 +73,8 @@ perangat-tabulation/
 │     └─ admin/             index.html, admin.js, admin.css, print.html, print.js, print.css
 └─ test/
    ├─ scoring.test.js       Rules: ranking, deductions, averaging
-   └─ api.test.js           End-to-end over HTTP and WebSocket, in-memory database
+   ├─ api.test.js           End-to-end over HTTP and WebSocket, in-memory database
+   └─ security.test.js      Attacks that must keep failing: forged hosts, foreign origins, bad input
 ```
 
 ## Data model
@@ -215,11 +221,36 @@ When the tabulator changes the setup mid-event, the page compares a signature of
 
 This is a trusted-LAN tool, not an internet service.
 
-- **Judges** authenticate with a short access code and receive a random session token. Failed sign-ins are limited to 10 per device per 5 minutes. A judge can only read and write their own scores; `results.js` filters by judge before anything is computed for them.
-- **Admin** has no password. `/admin` and `/api/admin` answer only loopback connections, so the admin console works only on the tabulation computer. A request with a foreign `Origin` header is rejected, which stops a web page open in a browser on that computer from calling the admin API.
+- **Judges** authenticate with an access code and receive a random 256-bit session token. Generated codes are six digits and failed sign-ins are limited to 10 per device per 5 minutes, which together make guessing a code during an event impractical. A judge can only read and write their own scores: the judge is always taken from the session, and `results.js` filters by judge before anything is computed for them.
+- **Admin** has no password. `adminAccessProblem()` in `index.js` guards `/admin`, `/api/admin` and the admin WebSocket with three checks:
+  - the connection comes from the tabulation computer (loopback);
+  - the `Host` header names that computer (`127.0.0.1` or `localhost`), which defeats DNS rebinding, where a hostile site points its own domain at 127.0.0.1;
+  - any `Origin` header matches the admin console itself, so a site open in a browser on that computer cannot call the admin API or open the admin socket. WebSockets are not covered by the browser's same-origin rule, so this check is the only thing stopping that.
 - Access codes are stored in plain text because the tabulator must be able to read them back and print them.
 - Traffic is plain HTTP. Use a network you control (a dedicated router is ideal) and do not expose the port to the internet.
-- Pages are sent with a Content-Security-Policy that only allows resources from the server itself, and all text is inserted as text nodes, never as HTML.
+- Pages are sent with a Content-Security-Policy that only allows resources from the server itself, and all text is inserted as text nodes, never as HTML. API responses are sent `no-store`.
+- All SQL uses bound parameters. Request bodies are limited to 100 KB and WebSocket frames to 1 KB.
+- The Electron windows run sandboxed with context isolation, cannot navigate or open windows outside the app's own pages, and are refused every permission request.
+
+`test/security.test.js` attacks each of these and must keep passing.
+
+## Performance
+
+Measured with `npm run bench` on the development laptop (the server and the simulated judges share one process, so real figures are a little better):
+
+| | 7 judges × 20 contingents | 15 judges × 60 contingents |
+| --- | --- | --- |
+| Scores saved per second, all judges saving non-stop | about 300 | about 270 |
+| Judge loads all three scoresheets | 1 ms | 3 ms |
+| Admin results with every sheet full | 3 ms | 18 ms |
+| Database file | 236 KB | 924 KB |
+
+A real panel saves a handful of scores per second, so there is a large margin.
+
+- **Each save costs about 3 ms, nearly all of it the disk flush.** The database runs with `synchronous = FULL`, so a score is on disk before the judge's screen says it is saved. `NORMAL` would cut the write from 3 ms to under 0.1 ms but could lose the last few scores in a power cut; durability matters more here.
+- **A judge's sheet is recomputed on every save**, so that path reads only that judge's rows.
+- **The admin console re-reads results at most once every 150 ms** however many scores arrive, and re-reads the setup only when the setup changed.
+- **The judge page is about 39 KB** uncompressed across eight files, cached by the browser and revalidated by ETag.
 
 ## Extending it
 

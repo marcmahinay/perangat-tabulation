@@ -22,9 +22,19 @@ The database is pre-loaded with the *Perangat Festival 2026 Official Judging Cri
 
 Categories, criteria, weights, deduction rules, judges and contingents can all be changed in the app.
 
+## Documentation
+
+| Document | For | Covers |
+| --- | --- | --- |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Whoever sets up the tabulation computer | Building the installer, installing, network and firewall, pre-event checks, backup and restore, updating |
+| [docs/TABULATOR_GUIDE.md](docs/TABULATOR_GUIDE.md) | The tabulator on event day | Setup, monitoring, deductions, closing a category, what to do when something goes wrong |
+| [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md) | Judges | A one-page handout on signing in, scoring and submitting |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Developers | How the server, database and pages fit together |
+| [CHANGELOG.md](CHANGELOG.md) | Developers | What changed in each version |
+
 ## Requirements
 
-- **Node.js 22.5 or newer** on the tabulation computer. The app uses Node's built-in SQLite, so there are no native modules to compile. Developed and tested with Node 26 and Electron 39.
+- **Node.js 22.12 or newer** on the tabulation computer. The app uses Node's built-in SQLite, so there are no native modules to compile. Developed and tested with Node 26 and Electron 44.
 - Windows 10/11. macOS and Linux have not been tested.
 - A Wi-Fi router or switch that the tabulation computer and every judge device connect to. It does not need internet access.
 
@@ -47,7 +57,7 @@ The admin console opens. The first time, Windows Firewall asks whether to allow 
 In the admin console's sidebar:
 
 1. **Settings** — enter the event name, venue, date and the tabulator's name (printed on the results).
-2. **Judges** — three judges are created to start with. Rename them, add more, and note each judge's **access code**. *Print access slips* gives you a cut-apart sheet to hand out.
+2. **Judges** — three judges are created to start with. Rename them, add more, and note each judge's **access code**. New codes are six digits; you can set your own of 4 to 12 letters or digits, but shorter codes are easier to guess. *Print access slips* gives you a cut-apart sheet to hand out.
 3. **Contingents** — add the competing groups in order of performance. *Add several* takes one name per line.
 4. **Categories & criteria** — check the criteria and weights. Each category should total 100%.
 
@@ -105,7 +115,7 @@ A category can instead be ranked by **average score** (highest wins), where per-
 
 Everything is stored in a single SQLite file. Its location is shown under **Settings → Data** (on Windows, `%APPDATA%\perangat-tabulation\tabulation.sqlite`).
 
-- **Back up now** writes a timestamped copy to a `backups` folder next to the database.
+- **Back up now** writes a timestamped copy to a `backups` folder next to the database. Restoring one is described in [DEPLOYMENT.md](DEPLOYMENT.md#data-backup-and-restore).
 - **Clear all scores** deletes scores, submissions and deductions but keeps the setup. Use it after a rehearsal.
 
 Closing the app stops the server; judges are disconnected until it is started again. Their sign-ins and all saved scores survive a restart.
@@ -116,14 +126,15 @@ Closing the app stops the server; judges are disconnected until it is started ag
 | --- | --- |
 | `npm start` | Runs the desktop app. |
 | `npm run server` | Runs only the server, without the Electron window. The admin console is then at `http://localhost:3000/admin/` on that computer. Data goes to `./data/tabulation.sqlite`. |
-| `npm test` | Runs the scoring and API tests. |
+| `npm test` | Runs the scoring, API and security tests. |
+| `npm run bench` | Load test: every judge fills every scoresheet at once against a throwaway database, and response times are printed. `npm run bench -- 15 60` sets judges and contingents. |
 | `npm run dist` | Builds a Windows installer into `dist/` with electron-builder. |
 
 Environment variables: `PORT` (default `3000`; if it is taken the app tries the next ports) and `PERANGAT_DB` (path to the database file).
 
 ## Troubleshooting
 
-**`npm start` says "Electron failed to install correctly".** Run `node scripts/ensure-electron.js`. On some Node versions Electron's installer downloads the program but exits before unpacking it; this script finishes the job. It also runs automatically after `npm install`.
+**`npm start` says "Electron failed to install correctly".** The Electron program is downloaded during `npm install`, which needs internet access. Go online and run `npx install-electron`.
 
 **The admin console says it is "only available on the tabulation computer".** That is by design: the admin pages and API only answer requests coming from the computer running the app.
 

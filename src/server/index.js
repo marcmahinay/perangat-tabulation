@@ -32,26 +32,46 @@ function isLoopback(address) {
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
 }
 
+const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+function hostOf(value) {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The admin console has no password; it is protected by only being reachable
- * from the tabulation computer itself. The Origin check stops a web page open
- * in a browser on that computer from calling the admin API behind its back.
+ * from the tabulation computer itself. Returns why a request is refused, or
+ * null when it may use the admin console.
+ *
+ *  - The connection must come from this computer.
+ *  - The Host header must name this computer. A hostile web page can point its
+ *    own domain name at 127.0.0.1 (DNS rebinding) and would otherwise look local.
+ *  - A request sent by a page must come from the admin console's own pages, so a
+ *    site open in a browser on this computer cannot call the admin API.
  */
-function localOnly(req, res, next) {
+function adminAccessProblem(req) {
   if (!isLoopback(req.socket.remoteAddress)) {
-    return next(new HttpError(403, 'The admin console is only available on the tabulation computer.'));
+    return 'The admin console is only available on the tabulation computer.';
   }
   const { origin, host } = req.headers;
-  if (origin) {
-    let originHost = null;
-    try {
-      originHost = new URL(origin).host;
-    } catch {
-      // An unparseable Origin header is treated as foreign.
-    }
-    if (originHost !== host) return next(new HttpError(403, 'Cross-site requests are not allowed.'));
+  const target = host ? hostOf(`http://${host}`) : null;
+  if (!target || !LOCAL_HOSTNAMES.has(target.hostname)) {
+    return 'Open the admin console as http://127.0.0.1 or http://localhost.';
   }
-  return next();
+  if (origin) {
+    const source = hostOf(origin);
+    if (!source || source.host !== target.host) return 'Cross-site requests are not allowed.';
+  }
+  return null;
+}
+
+function localOnly(req, res, next) {
+  const problem = adminAccessProblem(req);
+  return next(problem ? new HttpError(403, problem) : undefined);
 }
 
 function listen(server, port, host, attempts) {
@@ -90,7 +110,7 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
     server,
     authenticate(req, url) {
       if (url.searchParams.get('role') === 'admin') {
-        return isLoopback(req.socket.remoteAddress) ? { role: 'admin' } : null;
+        return adminAccessProblem(req) ? null : { role: 'admin' };
       }
       const judge = judgeRoutes.judgeForToken(db, url.searchParams.get('token'));
       return judge ? { role: 'judge', judgeId: judge.id } : null;
@@ -105,6 +125,12 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
       "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; frame-ancestors 'none'",
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
+  // Scores and access codes must never be kept in a browser or proxy cache.
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
     next();
   });
   app.use(express.json({ limit: '100kb' }));

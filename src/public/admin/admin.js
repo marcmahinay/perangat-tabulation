@@ -29,8 +29,9 @@ const store = {
 
 const api = (method, path, body) => request(method, `/api/admin${path}`, body);
 
-async function refresh() {
-  const [state, results] = await Promise.all([api('GET', '/state'), api('GET', '/results')]);
+/** `setup: false` re-reads only the tabulation, which is all a saved score can change. */
+async function refresh({ setup = true } = {}) {
+  const [state, results] = await Promise.all([setup ? api('GET', '/state') : store.state, api('GET', '/results')]);
   store.state = state;
   store.results = results;
   store.online = new Set(results.onlineJudgeIds);
@@ -452,7 +453,7 @@ function judgeDialog(existing) {
         name: 'access_code', label: 'Access code',
         hint: existing
           ? 'Changing the code signs this judge out of their device.'
-          : 'Leave blank to generate a 4-digit code.',
+          : 'Leave blank to generate a 6-digit code.',
       },
       { name: 'categoryIds', label: 'Scores these categories', type: 'checks', options: categoryOptions() },
     ],
@@ -474,6 +475,14 @@ function judgesView() {
       store.online.has(judge.id) ? ' Connected' : ' Not connected',
     ),
     h('td', { class: 'num nowrap' },
+      button('New code', async () => {
+        const confirmed = await confirmDialog({
+          title: `Give Judge ${judge.judge_no} a new access code?`,
+          message: 'A new six-digit code is generated. The old code stops working and this judge is signed out of their device. Their scores are kept.',
+          confirmLabel: 'Generate new code',
+        });
+        if (confirmed) act(() => api('PUT', `/judges/${judge.id}`, { name: judge.name, new_code: true }), 'New access code generated.');
+      }, 'small'), ' ',
       button('Edit', () => judgeDialog(judge), 'small'), ' ',
       button('Delete', async () => {
         const confirmed = await confirmDialog({
@@ -765,6 +774,7 @@ function render() {
 }
 
 let refreshTimer = null;
+let setupChanged = false;
 
 /** Live events only say that something changed; the fresh numbers are fetched over HTTP. */
 function onLiveEvent(event) {
@@ -775,10 +785,13 @@ function onLiveEvent(event) {
     else render();
     return;
   }
+  if (event.type !== 'scores' && event.type !== 'sheets') setupChanged = true;
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
+    const setup = setupChanged;
+    setupChanged = false;
     try {
-      await refresh();
+      await refresh({ setup });
       if (INLINE_FORM_VIEWS.has(store.view)) renderShell();
       else render();
     } catch {

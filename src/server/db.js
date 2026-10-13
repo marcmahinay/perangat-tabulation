@@ -29,7 +29,10 @@ class Database {
     this.file = file;
     this.raw = new DatabaseSync(file);
     this.statements = new Map();
-    this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+    // synchronous = FULL flushes every save to disk before the judge is told it
+    // is saved (about 3 ms each). NORMAL would be far faster but could lose the
+    // last few scores in a power cut, which matters more here than throughput.
+    this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.raw.exec(SCHEMA);
     seedDatabase(this);
     this.migrate();

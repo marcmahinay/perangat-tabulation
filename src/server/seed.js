@@ -73,8 +73,10 @@ const SETTINGS = {
 
 const DEFAULT_JUDGE_COUNT = 3;
 
+// Six digits: sign-in allows 10 wrong guesses per device every 5 minutes, so a
+// four-digit code could be guessed during an event; a six-digit one cannot.
 function randomAccessCode() {
-  return String(crypto.randomInt(0, 10000)).padStart(4, '0');
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
 /** Loads the Perangat 2026 rule book into a brand-new database. Runs once. */

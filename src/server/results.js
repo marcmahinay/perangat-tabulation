@@ -43,20 +43,32 @@ function categoryResults(db, category, { judgeId = null } = {}) {
     category.id,
   ).filter((judge) => judgeId == null || judge.id === judgeId);
 
-  const scores = db.all(
-    `SELECT s.judge_id, s.contestant_id, s.criterion_id, s.score
-       FROM scores s
-       JOIN criteria k ON k.id = s.criterion_id
-      WHERE k.category_id = ?`,
-    category.id,
-  ).filter((score) => judgeId == null || score.judge_id === judgeId);
+  // A judge's own sheet is recomputed on every score they save, so that path
+  // reads only their rows instead of the whole panel's.
+  const scores = judgeId == null
+    ? db.all(
+      `SELECT s.judge_id, s.contestant_id, s.criterion_id, s.score
+         FROM scores s
+         JOIN criteria k ON k.id = s.criterion_id
+        WHERE k.category_id = ?`,
+      category.id,
+    )
+    : db.all(
+      `SELECT s.judge_id, s.contestant_id, s.criterion_id, s.score
+         FROM scores s
+         JOIN criteria k ON k.id = s.criterion_id
+        WHERE s.judge_id = ? AND k.category_id = ?`,
+      judgeId, category.id,
+    );
 
-  const deductions = db.all(
-    `SELECT d.contestant_id, d.points, d.remarks, t.name, t.scope
-       FROM deductions d
-       JOIN deduction_types t ON t.id = d.deduction_type_id
-      ORDER BY d.id`,
-  );
+  const deductions = category.apply_deductions
+    ? db.all(
+      `SELECT d.contestant_id, d.points, d.remarks, t.name, t.scope
+         FROM deductions d
+         JOIN deduction_types t ON t.id = d.deduction_type_id
+        ORDER BY d.id`,
+    )
+    : [];
 
   return computeCategoryResults({
     category,

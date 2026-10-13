@@ -5,7 +5,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const { startServer } = require('../server');
 
 const PRELOAD = path.join(__dirname, 'preload.js');
@@ -26,33 +26,35 @@ function createWindow() {
     webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
 
-  // Print previews open as child windows; anything else goes to the real browser.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isOwnPage(url)) {
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          width: 1200,
-          height: 850,
-          autoHideMenuBar: true,
-          webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true },
-        },
-      };
-    }
-    if (/^https?:/.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isOwnPage(url)) event.preventDefault();
-  });
-
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
   mainWindow.loadURL(`${server.localUrl}/admin/`);
 }
+
+// Every window, including print previews, is confined to the app's own pages:
+// it cannot navigate away, open anything else, or embed other content.
+app.on('web-contents-created', (createdEvent, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (!isOwnPage(url)) return { action: 'deny' };
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 1200,
+        height: 850,
+        autoHideMenuBar: true,
+        webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true },
+      },
+    };
+  });
+
+  contents.on('will-navigate', (event, url) => {
+    if (!isOwnPage(url)) event.preventDefault();
+  });
+
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+});
 
 // Lets a print view save itself as a PDF without going through the print dialog.
 ipcMain.handle('pdf:save', async (event, options = {}) => {
@@ -86,6 +88,9 @@ async function boot() {
     app.quit();
     return;
   }
+  // The pages need no camera, microphone, location or notifications.
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(false));
+
   console.log(`Database: ${dbPath}`);
   console.log(`Judges connect to: ${server.urls().join('  or  ') || '(no network found)'}`);
   createWindow();

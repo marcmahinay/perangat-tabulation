@@ -9,8 +9,9 @@
   "scripts": {
     "start": "node scripts/start.js",
     "server": "node scripts/server.js",
-    "postinstall": "node scripts/ensure-electron.js",
+    "postinstall": "install-electron",
     "test": "node --test",
+    "bench": "node scripts/benchmark.js",
     "dist": "electron-builder --win"
   },
   "dependencies": {
@@ -18,7 +19,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "electron": "^39.0.0",
+    "electron": "^44.7.1",
     "electron-builder": "^26.0.0"
   },
   "build": {

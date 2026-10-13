@@ -108,11 +108,12 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
   // ---- Judges ---------------------------------------------------------------
 
   function judgeFields(body, existing) {
-    const accessCode = blank(body.access_code)
-      ? (existing ? existing.access_code : randomAccessCode())
-      : v.text(body.access_code, 'Access code', { max: 12 });
-    if (!/^[A-Za-z0-9]{3,12}$/.test(accessCode)) {
-      throw new HttpError(400, 'Access code must be 3 to 12 letters or digits.');
+    let accessCode;
+    if (body.new_code === true) accessCode = randomAccessCode();
+    else if (blank(body.access_code)) accessCode = existing ? existing.access_code : randomAccessCode();
+    else accessCode = v.text(body.access_code, 'Access code', { max: 12 });
+    if (!/^[A-Za-z0-9]{4,12}$/.test(accessCode)) {
+      throw new HttpError(400, 'Access code must be 4 to 12 letters or digits.');
     }
     return {
       name: v.text(body.name, 'Judge name', { max: 120 }),
@@ -434,7 +435,11 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     if (serverInfo.dbPath === ':memory:') throw new HttpError(400, 'An in-memory database cannot be backed up.');
     const directory = path.join(path.dirname(serverInfo.dbPath), 'backups');
     fs.mkdirSync(directory, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    // Local time, so the file name matches the clock the tabulator is looking at.
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
+      + `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const file = path.join(directory, `tabulation-${stamp}.sqlite`);
     db.raw.prepare('VACUUM INTO ?').run(file);
     res.json({ file });

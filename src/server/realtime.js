@@ -12,7 +12,8 @@ const HEARTBEAT_MS = 30000;
  * or null to reject the connection.
  */
 function createHub({ server, authenticate }) {
-  const wss = new WebSocketServer({ noServer: true });
+  // Clients never send anything meaningful, so refuse large frames instead of buffering them.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   const clients = new Map();
 
   function send(ws, event) {

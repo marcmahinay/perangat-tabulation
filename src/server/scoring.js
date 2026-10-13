@@ -68,14 +68,20 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
 
   const byRankSum = category.ranking_method === 'rank_sum';
 
+  const deductionsByContestant = new Map();
+  if (category.apply_deductions) {
+    for (const deduction of deductions) {
+      if (!deductionsByContestant.has(deduction.contestant_id)) deductionsByContestant.set(deduction.contestant_id, []);
+      deductionsByContestant.get(deduction.contestant_id).push(deduction);
+    }
+  }
+
   const rows = contestants.map((contestant) => {
     // When the judges' ranks decide the result, a deduction "from the final
     // score" would change nothing if it were taken off afterwards. It can only
     // count by coming off every judge's total before the judges are ranked.
-    const applied = (category.apply_deductions
-      ? deductions.filter((deduction) => deduction.contestant_id === contestant.id)
-      : []
-    ).map((deduction) => (byRankSum ? { ...deduction, scope: 'per_judge' } : deduction));
+    const applied = (deductionsByContestant.get(contestant.id) || [])
+      .map((deduction) => (byRankSum ? { ...deduction, scope: 'per_judge' } : deduction));
     const perJudgeDeduction = round2(sum(applied.filter((d) => d.scope === 'per_judge').map((d) => d.points)));
     const finalDeduction = round2(sum(applied.filter((d) => d.scope === 'final').map((d) => d.points)));
 

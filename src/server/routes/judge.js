@@ -44,8 +44,11 @@ function judgeRoutes({ db, hub }) {
   router.post('/login', (req, res) => {
     const ip = req.socket.remoteAddress;
     const now = Date.now();
-    let attempts = failedLogins.get(ip);
-    if (attempts && attempts.resetAt < now) attempts = undefined;
+    // Forget expired entries so the table cannot grow without bound.
+    for (const [address, entry] of failedLogins) {
+      if (entry.resetAt < now) failedLogins.delete(address);
+    }
+    const attempts = failedLogins.get(ip);
     if (attempts && attempts.count >= MAX_FAILED_LOGINS) {
       throw new HttpError(429, 'Too many incorrect codes. Wait a few minutes or ask the tabulator for help.');
     }

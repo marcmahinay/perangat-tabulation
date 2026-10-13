@@ -43,22 +43,22 @@ const CATEGORIES = [
 const DEDUCTION_TYPES = [
   {
     name: 'Safety & Prohibited Acts Violation',
-    points: 5, scope: 'final', unit: 'flat', limit_seconds: null,
+    points: 5, unit: 'flat', limit_seconds: null,
     notes: 'Unduly endangering performer safety; using infants/toddlers (3 yrs below), live animals, pyrotechnics/smoke bombs/poppers; actual weapons; liquids on stage.',
   },
   {
     name: 'Exceeding Entrance Time',
-    points: 1, scope: 'per_judge', unit: 'flat', limit_seconds: 240,
+    points: 1, unit: 'flat', limit_seconds: 240,
     notes: 'Entrance max 4 mins (includes up to 2 mins synopsis reading). Any excess 1-59 secs counts as 1 point deduction.',
   },
   {
     name: 'Exceeding Exit Time',
-    points: 1, scope: 'per_judge', unit: 'flat', limit_seconds: 120,
+    points: 1, unit: 'flat', limit_seconds: 120,
     notes: 'Exit max 2 mins. Any excess 1-59 secs counts as 1 point deduction.',
   },
   {
     name: 'Exceeding Actual Performance Time',
-    points: 1, scope: 'per_judge', unit: 'per_minute', limit_seconds: 300,
+    points: 1, unit: 'per_minute', limit_seconds: 300,
     notes: 'Performance limit 5 mins. 1-59 secs excess not penalized. 1-point deduction starting at 6:00 per minute.',
   },
 ];
@@ -112,8 +112,8 @@ function seedDatabase(db) {
 
     DEDUCTION_TYPES.forEach((type, index) => {
       db.run(
-        'INSERT INTO deduction_types (name, points, scope, unit, limit_seconds, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        type.name, type.points, type.scope, type.unit, type.limit_seconds, type.notes, index + 1,
+        'INSERT INTO deduction_types (name, points, unit, limit_seconds, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+        type.name, type.points, type.unit, type.limit_seconds, type.notes, index + 1,
       );
     });
   });

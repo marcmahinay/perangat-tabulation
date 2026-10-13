@@ -12,17 +12,28 @@ const round2 = (value) => roundTo(value, 2);
 const sum = (values) => values.reduce((total, value) => total + value, 0);
 
 /**
- * Standard competition ranking ("1-2-2-4"): tied entries share a rank and the
- * following rank is skipped. Returns a Map of entry -> rank.
+ * Ranks entries in the order given by `compare`. Returns a Map of entry -> rank.
+ *
+ * Tied entries are handled one of two ways:
+ *  - fractional ("1 - 2.5 - 2.5 - 4"): each takes the average of the places the
+ *    tie covers. The ranks on a sheet then always add up to the same total, so
+ *    a judge who ties contingents gives out exactly as many rank points as one
+ *    who does not.
+ *  - shared, the default ("1 - 2 - 2 - 4"): each takes the best place of the
+ *    tie and the places after it are skipped. Used for final placings.
  */
-function rankEntries(entries, compare) {
+function rankEntries(entries, compare, { fractional = false } = {}) {
   const sorted = [...entries].sort(compare);
   const ranks = new Map();
-  let current = 0;
-  sorted.forEach((entry, index) => {
-    if (index === 0 || compare(sorted[index - 1], entry) !== 0) current = index + 1;
-    ranks.set(entry, current);
-  });
+  let first = 0;
+  while (first < sorted.length) {
+    let last = first;
+    while (last + 1 < sorted.length && compare(sorted[first], sorted[last + 1]) === 0) last += 1;
+    // The tie covers places first + 1 through last + 1.
+    const rank = fractional ? (first + last + 2) / 2 : first + 1;
+    for (let index = first; index <= last; index += 1) ranks.set(sorted[index], rank);
+    first = last + 1;
+  }
   return ranks;
 }
 
@@ -48,14 +59,18 @@ function computeDeductionCharge(type, { measuredSeconds = null, quantity = null 
 /**
  * Tabulates one category.
  *
- *   judge total  = sum of criterion scores - "per judge" deductions
- *   judge rank   = that judge's ranking of the contingents by judge total
- *   average      = mean of the totals of every judge who finished the contingent
- *   final score  = average - "final score" deductions
+ *   raw score    = sum of a judge's criterion scores for a contingent
+ *   final score  = raw score - every deduction charged to that contingent
+ *   judge rank   = that judge's ranking of the contingents by final score;
+ *                  equal scores share the average of their places (fractional ranking)
+ *   average      = mean of the final scores of every judge who finished the contingent
+ *
+ * Every deduction comes off each judge's raw score. There is no other place a
+ * deduction is applied.
  *
  * ranking_method 'rank_sum' (the Perangat rule): the contingent with the lowest
  * sum of judge ranks wins; the average score only breaks ties.
- * ranking_method 'average': the highest final score wins.
+ * ranking_method 'average': the highest average score wins.
  *
  * `judges` carry their scoresheet `status`; the category is final once every
  * assigned judge has submitted.
@@ -77,13 +92,8 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
   }
 
   const rows = contestants.map((contestant) => {
-    // When the judges' ranks decide the result, a deduction "from the final
-    // score" would change nothing if it were taken off afterwards. It can only
-    // count by coming off every judge's total before the judges are ranked.
-    const applied = (deductionsByContestant.get(contestant.id) || [])
-      .map((deduction) => (byRankSum ? { ...deduction, scope: 'per_judge' } : deduction));
-    const perJudgeDeduction = round2(sum(applied.filter((d) => d.scope === 'per_judge').map((d) => d.points)));
-    const finalDeduction = round2(sum(applied.filter((d) => d.scope === 'final').map((d) => d.points)));
+    const applied = deductionsByContestant.get(contestant.id) || [];
+    const deduction = round2(sum(applied.map((entry) => entry.points)));
 
     const byJudge = {};
     for (const judge of judges) {
@@ -103,8 +113,8 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
         filled,
         complete,
         raw: round2(raw),
-        deduction: perJudgeDeduction,
-        net: complete ? round2(Math.max(0, raw - perJudgeDeduction)) : null,
+        deduction,
+        net: complete ? round2(Math.max(0, raw - deduction)) : null,
         rank: null,
       };
     }
@@ -112,16 +122,17 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
     return {
       contestant: { id: contestant.id, contestant_no: contestant.contestant_no, name: contestant.name },
       judges: byJudge,
-      deductions: applied.map((d) => ({ name: d.name, scope: d.scope, points: d.points, remarks: d.remarks })),
-      perJudgeDeduction,
-      finalDeduction,
+      deductions: applied.map((entry) => ({ name: entry.name, points: entry.points, remarks: entry.remarks })),
+      deduction,
     };
   });
 
-  // Each judge's own ranking of the contingents they have fully scored.
+  // Each judge's own ranking of the contingents they have fully scored. Equal
+  // totals get a fractional rank, so these may be halves (2.5) as well as whole numbers.
   for (const judge of judges) {
     const entries = rows.map((row) => row.judges[judge.id]).filter((entry) => entry.complete);
-    for (const [entry, rank] of rankEntries(entries, (a, b) => b.net - a.net)) entry.rank = rank;
+    const ranks = rankEntries(entries, (a, b) => b.net - a.net, { fractional: true });
+    for (const [entry, rank] of ranks) entry.rank = rank;
   }
 
   for (const row of rows) {
@@ -131,17 +142,18 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
     // Six decimals: enough to keep genuinely different averages apart, while
     // still erasing floating point noise before values are compared.
     row.average = finished.length ? roundTo(sum(finished.map((entry) => entry.net)) / finished.length, 6) : null;
-    row.final = row.average == null ? null : roundTo(Math.max(0, row.average - row.finalDeduction), 6);
     row.rankSum = row.complete ? sum(finished.map((entry) => entry.rank)) : null;
     row.rank = null;
     row.placement = null;
   }
 
   const compare = byRankSum
-    ? (a, b) => a.rankSum - b.rankSum || b.final - a.final
-    : (a, b) => b.final - a.final;
-  const rankable = rows.filter((row) => (byRankSum ? row.rankSum != null : row.final != null));
+    ? (a, b) => a.rankSum - b.rankSum || b.average - a.average
+    : (a, b) => b.average - a.average;
+  const rankable = rows.filter((row) => (byRankSum ? row.rankSum != null : row.average != null));
   const titles = category.placement_titles || [];
+  // Final placings are whole numbers so that each maps to an award title; contingents
+  // still level after the tie-break share the placing.
   for (const [row, rank] of rankEntries(rankable, compare)) {
     row.rank = rank;
     row.placement = titles[rank - 1] || null;

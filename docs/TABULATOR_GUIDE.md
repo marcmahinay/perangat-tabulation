@@ -48,7 +48,7 @@ Open **Deductions** as soon as the timekeeper reports a violation.
 
 If you type a time that is within the limit, the app tells you no deduction applies and records nothing.
 
-Every deduction comes off each judge's total for that contingent before the judges are ranked, so a deduction can change the ranks on every sheet. Judges see the deduction on their own screen. Out of the box, deductions affect Dance Showdown only.
+Every deduction is taken from each judge's raw score for that contingent: a 1-point deduction lowers the contingent by 1 on every judge's sheet. This happens before the judges are ranked, so a deduction can change the ranks on every sheet. Judges see the deduction on their own screen. Out of the box, deductions affect Dance Showdown only.
 
 To undo a deduction, press **Remove** next to it.
 
@@ -58,10 +58,11 @@ On **Live monitor**, press **Reopen** on that judge's chip. Their scoresheet unl
 
 ## How the winner is decided
 
-1. Each judge's scores for a contingent are added up, less deductions. That is the judge's total.
-2. Each judge's totals are ranked, highest first. Equal totals share a rank and the next rank is skipped: 1, 2, 2, 4.
-3. The ranks a contingent received from all judges are added. That is its **rank total**.
-4. The lowest rank total is the Champion, the next lowest is 1st Runner Up, and so on.
+1. Each judge's scores for a contingent are added up. That is the judge's raw score, shown as **Total score** on their sheet.
+2. Deductions charged to the contingent are taken off that raw score. The result is the judge's **Final score**.
+3. Each judge's final scores are ranked, highest first. Equal scores share the average of the places they cover: two contingents tied for 2nd and 3rd get 2.5 each, and the next gets 4. This is why ranks and rank totals can end in .5.
+4. The ranks a contingent received from all judges are added. That is its **rank total**.
+5. The lowest rank total is the Champion, the next lowest is 1st Runner Up, and so on.
 
 If two contingents have the same rank total, the one with the higher average score is placed first. If that is equal too, they share the placing and the next placing is skipped. Check with the festival committee before the event whether they want a different tie-break.
 

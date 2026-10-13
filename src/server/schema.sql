@@ -87,8 +87,7 @@ CREATE TABLE IF NOT EXISTS scoresheets (
 );
 
 -- The rule book: one row per line of the "Deductions" table.
---   scope = per_judge : taken from each judge's total score
---   scope = final     : taken from the averaged final score
+-- Every deduction is taken from each judge's raw score for the contingent.
 --   unit  = flat               : charged once per violation
 --   unit  = per_minute         : charged per full minute over the limit
 --   unit  = per_started_minute : charged per started minute over the limit
@@ -96,7 +95,6 @@ CREATE TABLE IF NOT EXISTS deduction_types (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT    NOT NULL UNIQUE,
   points        REAL    NOT NULL CHECK (points > 0),
-  scope         TEXT    NOT NULL CHECK (scope IN ('per_judge', 'final')),
   unit          TEXT    NOT NULL DEFAULT 'flat'
                 CHECK (unit IN ('flat', 'per_minute', 'per_started_minute')),
   limit_seconds INTEGER CHECK (limit_seconds IS NULL OR limit_seconds > 0),

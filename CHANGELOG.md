@@ -12,8 +12,8 @@ First version, built for the Perangat Festival 2026.
 - Categories, criteria and deduction rules from the *Perangat Festival 2026 Official Judging Criteria & Deductions*: Dance Showdown, Best Music and Festival Queen, with four deduction rules.
 - Judge scoresheet: per-criterion scoring up to each criterion's weight, automatic saving with retry while offline, live totals and ranks, and a submit step that locks the sheet.
 - Admin console: live monitor of scores and judge connections, results, deductions with time-based calculation, and setup of contingents, judges, categories, criteria and deduction rules.
-- Ranking by the sum of the judges' ranks, lowest total first, with average score as the tie-break. Ranking by average score is available per category.
-- Deductions taken off each judge's total before ranking, including the 5-point safety penalty.
+- Ranking by the sum of the judges' ranks, lowest total first, with average score as the tie-break. Equal totals on a judge's sheet get a fractional rank (1, 2.5, 2.5, 4). Ranking by average score is available per category.
+- Every deduction, time or safety, is taken from each judge's raw score for the contingent before the judges are ranked.
 - Printable results and per-judge scoresheets, with direct PDF export, and printable judge access slips.
 - Database backup to a timestamped file, and a "clear all scores" reset for use after rehearsals.
 - Windows installer via `npm run dist`.

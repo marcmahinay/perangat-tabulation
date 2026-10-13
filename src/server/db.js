@@ -20,6 +20,15 @@ const MIGRATIONS = [
       JSON.stringify(['CHAMPION', '1ST RUNNER UP', '2ND RUNNER UP', '3RD RUNNER UP', '4TH RUNNER UP']),
     );
   },
+  // Deduction rules used to say whether they came off each judge's score or
+  // off the averaged final score. Every deduction now comes off each judge's
+  // raw score, so the column that held that choice is dropped.
+  (db) => {
+    const columns = db.raw.prepare('PRAGMA table_info(deduction_types)').all();
+    if (columns.some((column) => column.name === 'scope')) {
+      db.raw.exec('ALTER TABLE deduction_types DROP COLUMN scope');
+    }
+  },
 ];
 
 /** Thin synchronous wrapper around node:sqlite with cached statements. */

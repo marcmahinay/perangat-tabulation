@@ -84,6 +84,30 @@ test('a database seeded with the old defaults is moved to sum-of-ranks once', ()
   db.close();
 });
 
+test('an older database loses the "taken from" choice on deduction rules and keeps its data', () => {
+  const { Database } = require('../src/server/db');
+  const db = new Database(':memory:');
+  const columns = () => db.raw.prepare('PRAGMA table_info(deduction_types)').all().map((column) => column.name);
+  assert.equal(columns().includes('scope'), false);
+
+  // Rebuild the column the way version 1 of the schema had it, with a recorded deduction against a rule.
+  db.raw.exec("ALTER TABLE deduction_types ADD COLUMN scope TEXT NOT NULL DEFAULT 'final' CHECK (scope IN ('per_judge', 'final'))");
+  db.run("INSERT INTO contestants (contestant_no, name) VALUES (1, 'Ozamiz City')");
+  const safety = db.get("SELECT id FROM deduction_types WHERE name = 'Safety & Prohibited Acts Violation'");
+  db.run('INSERT INTO deductions (contestant_id, deduction_type_id, quantity, points) VALUES (1, ?, 1, 5)', safety.id);
+  db.raw.exec('PRAGMA user_version = 1');
+  db.statements.clear();
+
+  db.migrate();
+
+  assert.equal(columns().includes('scope'), false);
+  assert.equal(db.all('SELECT * FROM deduction_types').length, 4);
+  assert.deepEqual(db.all('SELECT deduction_type_id, points FROM deductions').map((row) => ({ ...row })), [{ deduction_type_id: safety.id, points: 5 }]);
+  // Running it again on an up-to-date database is harmless.
+  db.migrate();
+  db.close();
+});
+
 test('only loopback addresses count as the tabulation computer', () => {
   assert.equal(isLoopback('127.0.0.1'), true);
   assert.equal(isLoopback('::ffff:127.0.0.1'), true);
@@ -156,7 +180,7 @@ test('three judges score a category over the network and the results add up', as
   assert.equal(mine.sheets[0].rows[0].rank, 1);
   assert.equal(JSON.stringify(mine).includes('access_code'), false);
 
-  // Tangub ran 6:10 on stage (1 point per judge) and committed a safety violation (5 off the final).
+  // Tangub ran 6:10 on stage (1 point) and committed a safety violation (5 points): 6 off every judge's raw score.
   const types = Object.fromEntries(state.deductionTypes.map((type) => [type.name, type.id]));
   const within = await call('POST', '/api/admin/deductions', {
     contestantId: tangub.id, typeId: types['Exceeding Actual Performance Time'], measuredSeconds: 340,

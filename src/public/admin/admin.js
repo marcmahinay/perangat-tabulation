@@ -14,7 +14,6 @@ const NAV = [
 // Views with inline form fields are not redrawn by live events, so typing is never interrupted.
 const INLINE_FORM_VIEWS = new Set(['deductions', 'settings']);
 
-const SCOPE_LABEL = { per_judge: "Each judge's total", final: 'Final score' };
 const UNIT_LABEL = { flat: 'Once', per_minute: 'Per full minute over', per_started_minute: 'Per started minute over' };
 const METHOD_LABEL = { rank_sum: "Sum of judges' ranks", average: 'Average of judge scores' };
 
@@ -94,23 +93,17 @@ const categoryOptions = () => store.state.categories.map((category) => ({ value:
 
 function ruleSummary(type) {
   const points = `${plain(type.points)} point${type.points === 1 ? '' : 's'}`;
-  const from = type.scope === 'final' ? 'the final score' : "each judge's total score";
+  const from = "taken from each judge's raw score";
   const limit = clock(type.limit_seconds);
-  if (type.unit === 'per_minute') return `${points} per full minute over ${limit}, taken from ${from}.`;
-  if (type.unit === 'per_started_minute') return `${points} per started minute over ${limit}, taken from ${from}.`;
-  if (limit) return `${points} for any time over ${limit}, taken from ${from}.`;
-  return `${points} per violation, taken from ${from}.`;
+  if (type.unit === 'per_minute') return `${points} per full minute over ${limit}, ${from}.`;
+  if (type.unit === 'per_started_minute') return `${points} per started minute over ${limit}, ${from}.`;
+  if (limit) return `${points} for any time over ${limit}, ${from}.`;
+  return `${points} per violation, ${from}.`;
 }
 
-function deductionSummary(row) {
-  const parts = [];
-  if (row.perJudgeDeduction) parts.push(`−${plain(row.perJudgeDeduction)} per judge`);
-  if (row.finalDeduction) parts.push(`−${plain(row.finalDeduction)} final`);
-  return parts.join(', ');
-}
-
+/** Deductions are always taken from each judge's raw score for the contingent. */
 function deductionCell(row) {
-  const text = deductionSummary(row);
+  const text = row.deduction ? `−${plain(row.deduction)} per judge` : '';
   return h('td', {
     class: text ? 'deducted nowrap' : 'muted',
     title: row.deductions.map((deduction) => `${deduction.name}: −${plain(deduction.points)}`).join('\n'),
@@ -167,11 +160,10 @@ function monitorCard(result) {
     h('td', { class: 'muted' }, row.contestant.contestant_no),
     h('td', { class: 'strong' }, row.contestant.name),
     judges.map((judge) => judgeCell(row.judges[judge.id], byRankSum, criteria.length)),
-    !byRankSum && h('td', { class: 'num' }, fmt(row.average, 3)),
     showDeductions && deductionCell(row),
     byRankSum
       ? h('td', { class: 'num strong' }, row.rankSum == null ? '–' : row.rankSum)
-      : h('td', { class: 'num strong' }, fmt(row.final, 3)),
+      : h('td', { class: 'num strong' }, fmt(row.average, 3)),
     h('td', { class: 'center rank' }, row.rank == null ? '–' : row.rank),
   ));
 
@@ -182,9 +174,8 @@ function monitorCard(result) {
     content = table([
       'No', 'Contingent',
       ...judges.map((judge) => judgeHeader(judge, byRankSum)),
-      !byRankSum && h('th', { class: 'num' }, 'Average'),
       showDeductions && h('th', null, 'Deductions'),
-      h('th', { class: 'num' }, byRankSum ? 'Rank total' : 'Final'),
+      h('th', { class: 'num' }, byRankSum ? 'Rank total' : 'Average'),
       h('th', { class: 'center' }, 'Rank'),
     ].filter(Boolean), body);
   }
@@ -242,9 +233,8 @@ function resultsView() {
     h('td', { class: 'strong' }, row.contestant.name),
     judges.map((judge) => judgeCell(row.judges[judge.id], byRankSum, current.criteria.length)),
     byRankSum && h('td', { class: 'num strong' }, row.rankSum == null ? '–' : row.rankSum),
-    h('td', { class: 'num' }, fmt(row.average, 3)),
+    h('td', { class: byRankSum ? 'num' : 'num strong' }, fmt(row.average, 3)),
     showDeductions && deductionCell(row),
-    !byRankSum && h('td', { class: 'num strong' }, fmt(row.final, 3)),
     h('td', null, row.placement && h('span', { class: `badge ${row.rank === 1 ? 'gold' : 'brand'}` }, row.placement)),
   ));
 
@@ -252,9 +242,8 @@ function resultsView() {
     h('th', { class: 'center' }, 'Rank'), 'No', 'Contingent',
     ...judges.map((judge) => judgeHeader(judge, byRankSum)),
     byRankSum && h('th', { class: 'num' }, 'Rank total'),
-    h('th', { class: 'num', title: byRankSum ? 'Only used to break a tie in the rank total' : '' }, byRankSum ? 'Avg. score' : 'Average'),
+    h('th', { class: 'num', title: byRankSum ? 'Only used to break a tie in the rank total' : '' }, 'Avg. score'),
     showDeductions && h('th', null, 'Deductions'),
-    !byRankSum && h('th', { class: 'num' }, 'Final score'),
     'Award',
   ].filter(Boolean);
 
@@ -276,8 +265,8 @@ function resultsView() {
       current.rows.length ? table(headers, body) : empty('No contingents are entered in this category yet.'),
       h('div', { class: 'card-foot muted' },
         byRankSum
-          ? "Each judge's totals are turned into that judge's ranking (shown in the circle). The rank total is the sum of those ranks; the lowest wins. A tie in the rank total goes to the higher average score."
-          : "Final score = average of the judges' totals" + (showDeductions ? ', less any final-score deductions' : '') + '. Highest final score wins.',
+          ? "Each judge's score for a contingent is their raw score less its deductions. Those scores are turned into that judge's ranking (shown in the circle). Equal scores share the average of their places, so a rank can be a half such as 2.5. The rank total is the sum of those ranks; the lowest wins. A tie in the rank total goes to the higher average score."
+          : "Each judge's score for a contingent is their raw score" + (showDeductions ? ' less its deductions' : '') + '. The highest average of those scores wins.',
       ),
     ),
   ];
@@ -291,9 +280,7 @@ function deductionsView() {
   const subtitle = (applying.length
     ? `Time and safety penalties. They are applied to: ${applying.map((category) => category.name).join(', ')}.`
     : 'Time and safety penalties. No category currently applies deductions.')
-    + (applying.some((category) => category.ranking_method === 'rank_sum')
-      ? " With sum-of-ranks scoring, every deduction comes off each judge's total before the judges are ranked."
-      : '');
+    + " Every deduction comes off each judge's raw score for that contingent.";
 
   const contestant = h('select', null,
     state.contestants.map((entry) => h('option', { value: entry.id }, `${entry.contestant_no}. ${entry.name}`)));
@@ -342,7 +329,6 @@ function deductionsView() {
       h('td', null, selected ? selected.name : '—'),
       h('td', { class: 'num' }, deduction.measured_seconds == null ? '–' : clock(deduction.measured_seconds)),
       h('td', { class: 'num deducted' }, `−${plain(deduction.points)}`),
-      h('td', null, selected ? SCOPE_LABEL[selected.scope] : ''),
       h('td', { class: 'muted' }, deduction.remarks),
       h('td', { class: 'num' }, button('Remove', async () => {
         const confirmed = await confirmDialog({
@@ -376,7 +362,7 @@ function deductionsView() {
     h('section', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', null, 'Recorded deductions')),
       rows.length
-        ? table(['Contingent', 'Violation', h('th', { class: 'num' }, 'Measured'), h('th', { class: 'num' }, 'Points'), 'Taken from', 'Remarks', ''], rows)
+        ? table(['Contingent', 'Violation', h('th', { class: 'num' }, 'Measured'), h('th', { class: 'num' }, 'Points per judge'), 'Remarks', ''], rows)
         : empty('No deductions recorded.'),
     ),
   ];
@@ -614,11 +600,7 @@ function ruleDialog(existing) {
     title: existing ? 'Edit deduction rule' : 'Add deduction rule',
     fields: [
       { name: 'name', label: 'Violation', required: true },
-      { name: 'points', label: 'Points deducted', type: 'number', required: true },
-      {
-        name: 'scope', label: 'Taken from', type: 'select',
-        options: Object.entries(SCOPE_LABEL).map(([value, label]) => ({ value, label })),
-      },
+      { name: 'points', label: 'Points deducted', type: 'number', required: true, hint: "Taken from each judge's raw score for the contingent." },
       {
         name: 'unit', label: 'Charged', type: 'select',
         options: [
@@ -630,7 +612,7 @@ function ruleDialog(existing) {
       { name: 'limit', label: 'Time limit (min:sec)', placeholder: 'e.g. 5:00', hint: 'Leave blank for violations that are not timed.' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ],
-    values: existing ? { ...existing, limit: clock(existing.limit_seconds) } : { scope: 'per_judge', unit: 'flat' },
+    values: existing ? { ...existing, limit: clock(existing.limit_seconds) } : { unit: 'flat' },
     onSubmit: ({ limit, ...values }) => {
       const seconds = limit === '' ? null : parseClock(limit);
       if (limit !== '' && seconds == null) throw new Error('Enter the time limit as minutes:seconds, for example 5:00.');
@@ -661,7 +643,6 @@ function settingsView() {
     h('td', { class: 'strong' }, type.name),
     h('td', { class: 'num' }, plain(type.points)),
     h('td', null, type.unit === 'flat' ? UNIT_LABEL.flat : `${UNIT_LABEL[type.unit]} ${clock(type.limit_seconds)}`),
-    h('td', null, SCOPE_LABEL[type.scope]),
     h('td', { class: 'num' }, type.limit_seconds == null ? '–' : clock(type.limit_seconds)),
     h('td', null, h('div', { class: 'description' }, type.notes)),
     h('td', { class: 'num nowrap' },
@@ -713,7 +694,7 @@ function settingsView() {
     h('section', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', null, 'Deduction rules'), button('Add rule', () => ruleDialog(), 'small')),
       ruleRows.length
-        ? table(['Violation', h('th', { class: 'num' }, 'Points'), 'Charged', 'Taken from', h('th', { class: 'num' }, 'Limit'), 'Notes', ''], ruleRows)
+        ? table(['Violation', h('th', { class: 'num' }, 'Points'), 'Charged', h('th', { class: 'num' }, 'Limit'), 'Notes', ''], ruleRows)
         : empty('No deduction rules.'),
     ),
     h('section', { class: 'card' },

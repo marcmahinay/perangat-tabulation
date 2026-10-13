@@ -11,7 +11,6 @@ const { randomAccessCode } = require('../seed');
 
 const SETTING_KEYS = ['event_name', 'event_subtitle', 'event_venue', 'event_date', 'tabulator_name'];
 const RANKING_METHODS = ['average', 'rank_sum'];
-const SCOPES = ['per_judge', 'final'];
 const UNITS = ['flat', 'per_minute', 'per_started_minute'];
 
 const blank = (value) => value == null || value === '';
@@ -337,7 +336,6 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     return {
       name: v.text(body.name, 'Violation name', { max: 160 }),
       points: v.number(body.points, 'Points', { min: 0.01, max: 100, decimals: 2 }),
-      scope: v.oneOf(body.scope, 'Applies to', SCOPES),
       unit: v.oneOf(body.unit || 'flat', 'Charged', UNITS),
       limit_seconds: blank(body.limit_seconds)
         ? null
@@ -353,8 +351,8 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
       throw new HttpError(400, 'A per-minute rule needs a time limit.');
     }
     const { lastInsertRowid } = db.run(
-      'INSERT INTO deduction_types (name, points, scope, unit, limit_seconds, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      fields.name, fields.points, fields.scope, fields.unit, fields.limit_seconds, fields.notes, fields.sort_order,
+      'INSERT INTO deduction_types (name, points, unit, limit_seconds, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+      fields.name, fields.points, fields.unit, fields.limit_seconds, fields.notes, fields.sort_order,
     );
     notify('config');
     res.status(201).json({ id: lastInsertRowid });
@@ -367,8 +365,8 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
       throw new HttpError(400, 'A per-minute rule needs a time limit.');
     }
     db.run(
-      'UPDATE deduction_types SET name = ?, points = ?, scope = ?, unit = ?, limit_seconds = ?, notes = ? WHERE id = ?',
-      fields.name, fields.points, fields.scope, fields.unit, fields.limit_seconds, fields.notes, type.id,
+      'UPDATE deduction_types SET name = ?, points = ?, unit = ?, limit_seconds = ?, notes = ? WHERE id = ?',
+      fields.name, fields.points, fields.unit, fields.limit_seconds, fields.notes, type.id,
     );
     notify('config');
     res.json({ ok: true });

@@ -118,7 +118,8 @@ table.sheet td.name {
   text-align: left;
   font-weight: 800;
   text-transform: uppercase;
-  white-space: nowrap;
+  /* Wide enough that ordinary names stay on one line; very long ones wrap rather than push columns off the page. */
+  min-width: 58mm;
 }
 
 table.sheet td.no,

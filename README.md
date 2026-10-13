@@ -15,10 +15,12 @@ The database is pre-loaded with the *Perangat Festival 2026 Official Judging Cri
 
 | Deduction | Penalty |
 | --- | --- |
-| Safety & Prohibited Acts Violation | 5 points from the final score |
-| Exceeding Entrance Time (limit 4:00) | 1 point from each judge's total |
-| Exceeding Exit Time (limit 2:00) | 1 point from each judge's total |
-| Exceeding Actual Performance Time (limit 5:00) | 1 point per full minute over, from each judge's total — 5:01–5:59 is free, 6:00 costs 1, 7:00 costs 2 |
+| Safety & Prohibited Acts Violation | 5 points |
+| Exceeding Entrance Time (limit 4:00) | 1 point |
+| Exceeding Exit Time (limit 2:00) | 1 point |
+| Exceeding Actual Performance Time (limit 5:00) | 1 point per full minute over — 5:01–5:59 is free, 6:00 costs 1, 7:00 costs 2 |
+
+Every deduction is taken from each judge's raw score for that contingent.
 
 Categories, criteria, weights, deduction rules, judges and contingents can all be changed in the app.
 
@@ -88,7 +90,7 @@ If a device cannot connect:
 From **Results**:
 
 - *Print this category* / *Print all categories* — official results sorted by rank: the rank each judge gave, the rank total, final rank, remarks and deductions, with signature lines for the judges and the tabulator.
-- *Print judge scoresheets* — one detailed sheet per judge, with every criterion score, total, deduction, final score and rank.
+- *Print judge scoresheets* — one detailed sheet per judge, with every criterion score, total (raw) score, deduction, final score and rank.
 
 Each print view has **Print** (the system print dialog) and **Save as PDF** buttons.
 
@@ -96,20 +98,23 @@ Each print view has **Print** (the system print dialog) and **Save as PDF** butt
 
 Every category is ranked by the **sum of the judges' ranks**, the same way as the festival's own tabulation sheet:
 
-1. **Judge total** = sum of that judge's criterion scores, minus deductions.
-2. **Judge rank** = each judge's totals are ranked, highest total first. Ties share a rank and the next rank is skipped (1, 2, 2, 4).
-3. **Rank total** = the sum of the ranks the judges gave a contingent.
-4. **Final rank** = lowest rank total first. The lowest is the Champion.
+1. **Raw score** = the sum of one judge's criterion scores for a contingent.
+2. **Final score** = raw score minus every deduction charged to that contingent. This is done on each judge's sheet.
+3. **Judge rank** = each judge's final scores are ranked, highest first. Equal scores get a **fractional rank**: the average of the places they cover. Two contingents tied for 2nd and 3rd get 2.5 each (1, 2.5, 2.5, 4); three tied for 5th to 7th get 6 each.
+4. **Rank total** = the sum of the ranks the judges gave a contingent.
+5. **Final rank** = lowest rank total first. The lowest is the Champion.
 
-If two contingents have the same rank total, the one with the higher average score is placed first. If the average is also equal they share the placing.
+Fractional ranks mean every judge gives out the same number of rank points whether or not they tie anyone, so a judge who gives equal scores does not hand those contingents a better rank than a judge who separates them.
 
-Deductions come off every judge's total before the judges are ranked. That includes the 5-point safety penalty: the rule book takes it "from the final score", but with ranks deciding the result it only has an effect if it is taken off each judge's total.
+If two contingents have the same rank total, the one with the higher average score is placed first. If the average is also equal they share the placing. Final placings are always whole numbers.
+
+Because deductions are taken off before the judges are ranked, a deduction can move a contingent down on every judge's sheet. A judge's score cannot go below zero.
 
 Deductions apply only to categories with *Deductions apply* switched on. Out of the box that is Dance Showdown only; Best Music and Festival Queen ignore them.
 
 Award titles are set per category. Dance Showdown starts with Champion, 1st Runner Up and 2nd Runner Up.
 
-A category can instead be ranked by **average score** (highest wins), where per-judge deductions come off each judge's total and final-score deductions come off the average. Ranking method and award titles are under *Categories & criteria → Edit*.
+A category can instead be ranked by **average score**: the average of the judges' final scores, highest first. Deductions work the same way. Ranking method and award titles are under *Categories & criteria → Edit*.
 
 ## Data and backups
 

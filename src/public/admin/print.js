@@ -31,11 +31,9 @@ function signature(name, role) {
 
 const judgeName = (judge) => (judge.name === `Judge ${judge.judge_no}` ? '' : judge.name);
 
+/** Deductions are always taken from each judge's raw score for the contingent. */
 function deductionSummary(row) {
-  const parts = [];
-  if (row.perJudgeDeduction) parts.push(`${plain(row.perJudgeDeduction)} / judge`);
-  if (row.finalDeduction) parts.push(`${plain(row.finalDeduction)} final`);
-  return parts.join(' + ') || fmt(0);
+  return row.deduction ? `${plain(row.deduction)} / judge` : fmt(0);
 }
 
 /** Consolidated results of one category, best rank first. */
@@ -78,9 +76,8 @@ function resultsPage(state, result) {
         h('th', null, 'No'),
         h('th', null, 'Name of contingent'),
         judges.map((judge) => h('th', null, `Judge ${judge.judge_no}`)),
-        h('th', null, 'Average'),
         showDeductions && h('th', null, 'Deduction'),
-        h('th', null, 'Final score', h('small', null, plain(result.maxScore))),
+        h('th', null, 'Average score', h('small', null, plain(result.maxScore))),
         h('th', null, 'Remarks'),
       )),
       h('tbody', null, rows.map((row) => h('tr', { class: row.rank === 1 ? 'winner' : '' },
@@ -88,9 +85,8 @@ function resultsPage(state, result) {
         h('td', { class: 'no' }, row.contestant.contestant_no),
         h('td', { class: 'name' }, row.contestant.name),
         judges.map((judge) => h('td', null, fmt(row.judges[judge.id].net))),
-        h('td', null, fmt(row.average, 3)),
         showDeductions && h('td', null, deductionSummary(row)),
-        h('td', { class: 'final' }, fmt(row.final, 3)),
+        h('td', { class: 'final' }, fmt(row.average, 3)),
         h('td', { class: 'remarks' }, remarks(row)),
       ))),
     );
@@ -101,8 +97,8 @@ function resultsPage(state, result) {
     table,
     h('p', { class: 'footnote' },
       byRankSum
-        ? "Each judge ranks the contingents by total score. Total = sum of the judges' ranks; the lowest total wins. A tie in the total goes to the higher average score."
-        : "Final score = average of the judges' totals" + (showDeductions ? ', after deductions.' : '.'),
+        ? "Each judge's final score is the raw score less deductions. Each judge ranks the contingents by final score; equal scores share the average of their places. Total = sum of the judges' ranks; the lowest total wins. A tie in the total goes to the higher average score."
+        : "Each judge's final score is the raw score" + (showDeductions ? ' less deductions' : '') + ". The highest average of the judges' final scores wins.",
       ` Printed ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`,
     ),
     h('div', { class: 'signatures' },
@@ -117,6 +113,9 @@ function judgePage(state, result, judge) {
   const { category, criteria } = result;
   const showDeductions = Boolean(category.apply_deductions);
   const submitted = judge.status === 'submitted';
+  // The judge's top contingent is highlighted. A tie for first has a fractional rank such as 1.5, so compare with the best rank given.
+  const given = result.rows.map((row) => row.judges[judge.id].rank).filter((rank) => rank != null);
+  const bestRank = given.length ? Math.min(...given) : null;
 
   return h('section', { class: 'page' },
     header(state, `Judge ${judge.judge_no} scoresheet`, category.name),
@@ -135,9 +134,9 @@ function judgePage(state, result, judge) {
       h('tbody', null, result.rows.map((row) => {
         const entry = row.judges[judge.id];
         const reasons = showDeductions
-          ? row.deductions.filter((deduction) => deduction.scope === 'per_judge').map((deduction) => deduction.name)
+          ? row.deductions.map((deduction) => deduction.name)
           : [];
-        return h('tr', { class: entry.rank === 1 ? 'winner' : '' },
+        return h('tr', { class: entry.rank != null && entry.rank === bestRank ? 'winner' : '' },
           h('td', { class: 'no' }, row.contestant.contestant_no),
           h('td', { class: 'name' }, row.contestant.name),
           criteria.map((criterion) => h('td', null, plain(entry.scores[criterion.id]))),

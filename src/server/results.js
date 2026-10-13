@@ -63,7 +63,7 @@ function categoryResults(db, category, { judgeId = null } = {}) {
 
   const deductions = category.apply_deductions
     ? db.all(
-      `SELECT d.contestant_id, d.points, d.remarks, t.name, t.scope
+      `SELECT d.contestant_id, d.points, d.remarks, t.name
          FROM deductions d
          JOIN deduction_types t ON t.id = d.deduction_type_id
         ORDER BY d.id`,
@@ -97,7 +97,7 @@ function judgeSheet(db, category, judgeId) {
     rows: result.rows.map((row) => ({
       contestant: row.contestant,
       ...row.judges[judgeId],
-      deductions: row.deductions.filter((deduction) => deduction.scope === 'per_judge'),
+      deductions: row.deductions,
     })),
   };
 }

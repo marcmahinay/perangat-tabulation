@@ -21,7 +21,7 @@ Each category you are judging has its own tab at the top: **Dance Showdown**, **
 
 Your scores save by themselves as you type. You can change any score until you submit.
 
-On the right of each row you will see your **Total**, any **Deduction** the tabulator has recorded, your **Final score** for that contingent, and your **Rank** — how that contingent stands among the ones you have scored so far. The official result is decided by adding up every judge's ranks, so check that your ranks say what you mean, especially where two contingents have the same total.
+On the right of each row you will see your **Total score** (the sum of the points you gave), any **Deduction** the tabulator has recorded, your **Final score** (total less deduction), and your **Rank** — how that contingent stands among the ones you have scored so far. The official result is decided by adding up every judge's ranks, so check that your ranks say what you mean. If two contingents end with the same final score they share the places between them: tied for 2nd and 3rd, each gets a rank of 2.5.
 
 Open **Criteria guide** at the bottom of the sheet to read the full description of each criterion.
 

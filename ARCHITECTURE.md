@@ -99,7 +99,7 @@ categories ──< criteria                        deduction_types
 | `category_judges`, `category_contestants` | Who scores / competes in which category | New judges and contingents are enrolled in every category by default |
 | `scores` | One cell of a scoresheet | Unique on `(judge_id, contestant_id, criterion_id)`; saved with an upsert |
 | `scoresheets` | A judge's submission lock for one category | `draft` or `submitted` |
-| `deduction_types` | A rule from the deductions table | `scope`: `per_judge` or `final`. `unit`: `flat`, `per_minute`, `per_started_minute`. `limit_seconds` for timed rules |
+| `deduction_types` | A rule from the deductions table | `points`, `unit`: `flat`, `per_minute`, `per_started_minute`. `limit_seconds` for timed rules |
 | `deductions` | A penalty charged to a contingent | `points` is a snapshot of rule points × quantity |
 | `judge_sessions` | A signed-in judge device | Kept in the database so judges stay signed in across a server restart |
 | `settings` | Key/value event details | |
@@ -110,24 +110,30 @@ How the official document maps onto it: each criteria table is a `categories` ro
 
 All of the maths lives in `src/server/scoring.js`, which has no I/O.
 
+Per judge, per contingent (`raw`, `deduction` and `net` in the code):
+
+```
+raw score    = Σ criterion scores                               (final only once all criteria are filled)
+final score  = max(0, raw score − Σ deductions for the contingent)
+```
+
+Every deduction comes off each judge's raw score. There is no deduction from an average or from a rank total.
+
 `ranking_method = rank_sum` is the Perangat rule and the default:
 
 ```
-judge total  = Σ criterion scores − Σ deductions                (only once all criteria are filled)
-judge rank   = that judge's totals, descending, competition ranking (1, 2, 2, 4)
+judge rank   = that judge's final scores, descending, fractional ranking (1, 2.5, 2.5, 4)
 rank total   = Σ judge ranks                                    (only once every judge is complete)
-rank         = rank total ascending; ties go to the higher average judge total
+rank         = rank total ascending; ties go to the higher average final score;
+               still level = shared placing (1, 2, 2, 4)
 ```
 
 `ranking_method = average` is the alternative:
 
 ```
-judge total  = Σ criterion scores − Σ per_judge deductions
-final score  = mean of the judge totals − Σ final deductions
-rank         = final score descending
+rank         = average of the judges' final scores, descending
 ```
 
-- Under `rank_sum`, a `final`-scope deduction is treated as `per_judge`. Taking it off afterwards would change nothing, because the ranks have already been decided; `computeCategoryResults()` rewrites the scope before it does any arithmetic.
 - Timed deductions are computed from the measured time by `computeDeductionCharge()`: `flat` charges once for any excess, `per_minute` charges per full minute over the limit, `per_started_minute` per started minute.
 - Averages are kept to six decimals before ranking so that two different averages are never rounded into a false tie. They are displayed to three.
 - A category is **final** when every assigned judge has submitted; until then results are labelled provisional.

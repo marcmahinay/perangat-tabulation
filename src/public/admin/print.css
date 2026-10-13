@@ -1,0 +1,232 @@
+/* Printable sheets: one .page per sheet of A4 landscape paper. */
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+body {
+  background: #d9d5e2;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--brand-dark);
+  color: #fff;
+}
+
+.toolbar .summary {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+.page {
+  width: 277mm;
+  min-height: 190mm;
+  margin: 18px auto;
+  padding: 10mm;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+}
+
+.sheet-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid #432c69;
+}
+
+.sheet-header h1 {
+  font-size: 22pt;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sheet-header h2 {
+  font-size: 14pt;
+  text-transform: uppercase;
+  text-align: right;
+}
+
+.sheet-header .meta {
+  font-size: 10pt;
+  color: #333;
+}
+
+.sheet-header .kind {
+  font-size: 10pt;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #333;
+}
+
+.stamp {
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 2px solid #b42318;
+  color: #b42318;
+  font-size: 10pt;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.06em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+table.sheet {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 11pt;
+}
+
+table.sheet th,
+table.sheet td {
+  padding: 6px 7px;
+  border: 1px solid #222;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+table.sheet thead th {
+  background: #e7dff3;
+  font-size: 8.5pt;
+  line-height: 1.2;
+  text-transform: uppercase;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+table.sheet thead th small {
+  display: block;
+  font-size: 9pt;
+  font-style: italic;
+}
+
+table.sheet td.name {
+  text-align: left;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+table.sheet td.no,
+table.sheet td.rank {
+  font-weight: 800;
+}
+
+table.sheet td.final {
+  font-weight: 800;
+}
+
+table.sheet td.remarks {
+  text-align: left;
+  font-size: 8.5pt;
+  text-transform: uppercase;
+}
+
+table.sheet tr.winner td {
+  background: #fdf3d0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.footnote {
+  margin-top: 6px;
+  font-size: 8.5pt;
+  color: #333;
+}
+
+.signatures {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 14mm 12mm;
+  margin-top: 16mm;
+  break-inside: avoid;
+}
+
+.signature {
+  min-width: 52mm;
+  text-align: center;
+}
+
+.signature .line {
+  min-height: 5mm;
+  padding: 0 4mm 1mm;
+  border-bottom: 1px solid #000;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.signature .role {
+  margin-top: 1mm;
+  font-size: 9.5pt;
+}
+
+/* Access slips */
+
+.slips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+}
+
+.slip {
+  padding: 6mm;
+  border: 1px dashed #555;
+  break-inside: avoid;
+}
+
+.slip h3 {
+  font-size: 15pt;
+}
+
+.slip p {
+  margin-top: 2mm;
+  font-size: 10pt;
+}
+
+.slip .url,
+.slip .code {
+  font: 800 13pt Consolas, "Courier New", monospace;
+}
+
+.slip .code {
+  font-size: 22pt;
+  letter-spacing: 0.15em;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .page {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .page:last-child {
+    break-after: auto;
+  }
+}

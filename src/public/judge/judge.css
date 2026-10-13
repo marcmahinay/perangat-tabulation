@@ -1,0 +1,303 @@
+/* Judge scoresheet. Sized for tablets and laptops; scrolls sideways on phones. */
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sign-in */
+
+.login {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  padding: 28px;
+}
+
+.login-card h1 {
+  color: var(--brand);
+}
+
+.login-card .subtitle {
+  margin: 2px 0 22px;
+  color: var(--muted);
+}
+
+.login-card .btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+}
+
+.login-card input,
+.login-card select {
+  padding: 11px 12px;
+  font-size: 1.05rem;
+}
+
+/* Top bar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 12px 20px;
+  background: var(--brand);
+  color: #fff;
+}
+
+.topbar .event {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.topbar .who {
+  opacity: 0.9;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.save-status.problem {
+  background: #fff;
+  color: var(--danger);
+}
+
+.topbar .btn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+/* Category tabs */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 20px 0;
+  overflow-x: auto;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: #ece7f4;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab.active {
+  background: var(--surface);
+  color: var(--brand);
+}
+
+/* Sheet */
+
+.sheet {
+  flex: 1;
+  margin: 0 20px 20px;
+  border-top-left-radius: 0;
+  overflow: hidden;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head p {
+  flex: 1 1 280px;
+  color: var(--muted);
+}
+
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+  background: #faf8fd;
+}
+
+.sheet-foot .progress {
+  flex: 1;
+  font-weight: 600;
+}
+
+.empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+table.scores {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+table.scores th,
+table.scores td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+table.scores thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 0.82rem;
+  line-height: 1.25;
+  vertical-align: bottom;
+  text-align: center;
+}
+
+table.scores thead th small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+table.scores th.name,
+table.scores td.name {
+  text-align: left;
+  font-weight: 700;
+}
+
+table.scores td.no {
+  width: 44px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+table.scores td.cell {
+  width: 108px;
+  text-align: center;
+}
+
+table.scores td.computed {
+  width: 84px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+table.scores td.computed.partial {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+table.scores td.rank {
+  width: 60px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--brand);
+}
+
+table.scores tr.complete td.no {
+  color: var(--ok);
+}
+
+.score-input {
+  width: 84px;
+  padding: 9px 6px;
+  border: 1.5px solid #c9c1d8;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.score-input.unsaved {
+  border-color: #d9a400;
+  background: #fffbea;
+}
+
+.score-input.invalid {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.score-input:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  opacity: 1;
+}
+
+.deduction-note {
+  display: block;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+details.guide {
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--line);
+}
+
+details.guide summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+details.guide dl {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+details.guide dt {
+  font-weight: 700;
+}
+
+details.guide dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .tabs { padding: 10px 10px 0; }
+  .sheet { margin: 0 10px 10px; }
+  .topbar { padding: 10px 12px; }
+}

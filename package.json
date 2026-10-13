@@ -1,0 +1,35 @@
+{
+  "name": "perangat-tabulation",
+  "version": "1.0.0",
+  "description": "LAN dance contest tabulation system for the Perangat Festival (Electron + Express + WebSockets + SQLite)",
+  "main": "src/main/main.js",
+  "private": true,
+  "author": "Marc Mahinay",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "server": "node scripts/server.js",
+    "postinstall": "node scripts/ensure-electron.js",
+    "test": "node --test",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "ph.perangat.tabulation",
+    "productName": "Perangat Tabulation",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

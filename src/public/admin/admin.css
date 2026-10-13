@@ -1,0 +1,315 @@
+/* Admin console layout. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--brand-dark);
+  color: #fff;
+}
+
+.sidebar-brand {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-brand strong {
+  display: block;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.sidebar-brand span {
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
+#nav {
+  flex: 1;
+  padding: 12px 10px;
+  overflow-y: auto;
+}
+
+.nav-group {
+  margin: 14px 10px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.nav-item {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.nav-item:hover { background: rgba(255, 255, 255, 0.08); }
+
+.nav-item.active {
+  background: #fff;
+  color: var(--brand-dark);
+  opacity: 1;
+}
+
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.85rem;
+}
+
+#main {
+  padding: 26px 30px 60px;
+  overflow-y: auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.page-head .titles {
+  flex: 1 1 320px;
+}
+
+.page-head p {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card {
+  margin-bottom: 20px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.card-head h2 {
+  margin-right: auto;
+}
+
+.card-body {
+  padding: 16px 18px;
+}
+
+.card-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: #faf8fd;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.empty {
+  padding: 28px 18px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Live monitor */
+
+.connect {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  padding: 18px 20px;
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.connect > div:first-child {
+  flex: 1 1 320px;
+}
+
+.connect p {
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+.connect-urls {
+  display: grid;
+  gap: 6px;
+}
+
+.connect code {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--brand-dark);
+  font: 700 1.35rem/1.2 Consolas, "Courier New", monospace;
+  user-select: all;
+}
+
+.judge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.judge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.judge-chip .count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+td.partial {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+td.strong,
+th.strong {
+  font-weight: 800;
+}
+
+td.rank {
+  font-weight: 800;
+  color: var(--brand);
+}
+
+tr.winner td {
+  background: var(--gold-soft);
+}
+
+td.deducted {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Tabs */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+/* Inline forms */
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1.6fr 0.8fr 1.4fr auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.inline-form .field {
+  margin: 0;
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  max-width: 760px;
+}
+
+code.path {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #ece9f1;
+  font: 0.85rem Consolas, "Courier New", monospace;
+  word-break: break-all;
+}
+
+code.secret {
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font: 700 1rem Consolas, "Courier New", monospace;
+  letter-spacing: 0.12em;
+}
+
+.description {
+  max-width: 520px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 1100px) {
+  .inline-form { grid-template-columns: 1fr 1fr; }
+}
+
+/* The rank a judge gave, shown beside that judge's total. */
+.judge-rank {
+  display: inline-block;
+  min-width: 24px;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}

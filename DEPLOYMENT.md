@@ -57,8 +57,9 @@ A dedicated router that you control is strongly recommended over the venue's sha
    - reserve the address in the router (usually called *DHCP reservation* or *address binding*), or
    - set a static IP in Windows that is outside the router's DHCP range.
 4. **Turn off client isolation** on the router (also called *AP isolation* or *guest mode*). With it on, judge devices cannot reach the tabulation computer.
-5. **Stop the computer from sleeping**: *Settings → System → Power* → set sleep to *Never* while plugged in. Keep it on mains power.
-6. **If you will use the device lock, keep every judge device on the same network segment as the tabulation computer.** The lock identifies a device by its MAC address, which the tabulation computer reads from its own neighbour (ARP) table. That table only holds devices it reaches directly: one router or switch, no second router, and no Wi-Fi extender that hands out its own addresses. On each judge device, set the *private Wi-Fi address* for the event network to *Fixed* (or off), so its MAC address does not change during the event.
+5. **Optional: exclude the data folder from antivirus real-time scanning** (`%APPDATA%\perangat-tabulation`). Every score is flushed to disk before the judge is told it is saved, and some antivirus products check the file on each write, which can stretch an occasional save to a second. Nothing is lost either way; the judge's screen just shows *Saving…* a little longer.
+6. **Stop the computer from sleeping**: *Settings → System → Power* → set sleep to *Never* while plugged in. Keep it on mains power.
+7. **Keep every judge device on the same network segment as the tabulation computer.** The device lock is on from the start, and it needs this. The lock identifies a device by its MAC address, which the tabulation computer reads from its own neighbour (ARP) table. That table only holds devices it reaches directly: one router or switch, no second router, and no Wi-Fi extender that hands out its own addresses. On each judge device, set the *private Wi-Fi address* for the event network to *Fixed* (or off), so its MAC address does not change during the event.
 
 ## 4. Open the firewall
 

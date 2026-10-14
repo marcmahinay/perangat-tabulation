@@ -54,6 +54,8 @@ test.before(async () => {
       return reading;
     },
   });
+  // One test signs a judge in from this computer, which the device lock (on by default) refuses.
+  await ok('PUT', '/api/admin/device-lock', { enabled: false });
   for (const name of ['Surigao City', 'Dipolog City']) await ok('POST', '/api/admin/contestants', { name });
   await refresh();
 });

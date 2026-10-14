@@ -43,6 +43,8 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
 test.before(async () => {
   server = await startServer({ dbPath: ':memory:', port: 0, host: '127.0.0.1' });
   base = server.localUrl;
+  // These tests sign judges in from this computer, which the device lock (on by default) refuses.
+  await ok('PUT', '/api/admin/device-lock', { enabled: false });
 });
 
 test.after(() => server.close());

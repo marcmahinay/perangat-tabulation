@@ -70,6 +70,18 @@ test.before(async () => {
   await refreshJudges();
 });
 
+test('a new database starts with the device lock on, so no device can open the judge pages yet', async () => {
+  assert.equal((await admin('GET', '/state')).json.deviceLock, true);
+  const refused = await call('GET', '/judge/', { from: TABLET_A });
+  assert.equal(refused.status, 403);
+  assert.match(refused.text, /not registered for judging/);
+  assert.equal((await call('GET', '/judge/')).status, 403, 'not even on the tabulation computer');
+
+  // The devices that tried are listed so the tabulator can register them; the tests below start unlocked.
+  assert.deepEqual((await admin('GET', '/state')).json.blockedDevices.map((device) => device.mac), [TABLET_A.mac]);
+  assert.deepEqual((await admin('PUT', '/device-lock', { enabled: false })).json, { ok: true, enabled: false });
+});
+
 test.after(() => server.close());
 
 // ---- Reading MAC addresses --------------------------------------------------

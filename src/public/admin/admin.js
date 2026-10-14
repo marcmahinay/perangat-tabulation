@@ -780,7 +780,9 @@ function deviceLockCard() {
       h('p', null, deviceLock
         ? 'Only a device registered to a judge can open the judge scoresheet, and only as that judge. Every other device is turned away.'
         : 'Any device on the network can open the judge sign-in page. Turn the lock on to allow only the device registered to each judge, identified by its MAC address.'),
-      h('p', { class: 'muted' }, 'To register a device, have the judge sign in on it and press Use signed-in device, or type its MAC address under Edit.'),
+      h('p', { class: 'muted' }, deviceLock
+        ? 'To register a device, have the judge open the judge address on it. It is turned away and listed below under Devices turned away; press Register to a judge… there. You can also type its MAC address under Edit.'
+        : 'To register a device, have the judge sign in on it and press Use signed-in device, or type its MAC address under Edit.'),
       deviceLock && unregistered.length > 0
         && h('p', null, h('span', { class: 'badge danger' }, `${numbers(unregistered)}: no registered device, cannot sign in`)),
     ),

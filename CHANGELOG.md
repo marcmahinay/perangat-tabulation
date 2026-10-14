@@ -30,7 +30,7 @@ First version, built for the Perangat Festival 2026.
 ### Security
 
 - A judge is signed in on one device at a time. A second device is refused, even with the right access code, until the first signs out or the tabulator presses **Disconnect**. The Judges page shows the device signed in as each judge: connected or not, MAC address, network address and since when.
-- Device lock: each judge can be registered to one device by MAC address. With the lock on, a device that is not registered cannot open the judge scoresheet, and a registered device can sign in only as its own judge. Devices that are turned away are listed so they can be registered. The lock applies to the tabulation computer's own browser too.
+- Device lock: each judge can be registered to one device by MAC address. With the lock on, a device that is not registered cannot open the judge scoresheet, and a registered device can sign in only as its own judge. Devices that are turned away are listed so they can be registered. The lock applies to the tabulation computer's own browser too, and it is on by default.
 - The admin console, its API and its live socket answer only requests that come from the tabulation computer, are addressed to it by name (`127.0.0.1` or `localhost`), and were not sent by a page from another site. This closes DNS-rebinding and cross-site WebSocket access.
 - Generated judge access codes are six digits, with sign-in limited to 10 wrong attempts per device every 5 minutes. A **New code** button replaces a judge's code and signs them out.
 - Content-Security-Policy, `no-store` on API responses, a 100 KB request limit and a 1 KB WebSocket frame limit.
@@ -40,5 +40,7 @@ First version, built for the Perangat Festival 2026.
 
 ### Performance
 
+- The tabulation computer's network addresses are cached for ten seconds instead of being read on every request from a judge's device (about 7 ms each on Windows, blocking the server).
+- The encoder screen releases each photo before taking the next, so a phone scanning many sheets does not run out of memory.
 - Saving a score re-reads only that judge's rows, and the admin console re-reads the setup only when the setup changed.
 - Every save is flushed to disk before it is acknowledged, so a power cut cannot lose a score the judge was told is saved.

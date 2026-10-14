@@ -1,13 +1,12 @@
 'use strict';
 
 const http = require('node:http');
-const os = require('node:os');
 const path = require('node:path');
 const express = require('express');
 const { Database } = require('./db');
 const { HttpError } = require('./errors');
 const { createHub } = require('./realtime');
-const { createDeviceLookup, createDeviceGuard } = require('./devices');
+const { createDeviceLookup, createDeviceGuard, networkInterfaces } = require('./devices');
 const publicRoutes = require('./routes/public');
 const judgeRoutes = require('./routes/judge');
 const adminRoutes = require('./routes/admin');
@@ -22,7 +21,7 @@ const VIRTUAL_ADAPTER = /vEthernet|WSL|Hyper-V|VirtualBox|VMware|docker|Loopback
 
 /** IPv4 addresses other devices on the LAN can use to reach this computer. */
 function lanAddresses() {
-  const candidates = Object.entries(os.networkInterfaces()).flatMap(([name, addresses]) =>
+  const candidates = Object.entries(networkInterfaces()).flatMap(([name, addresses]) =>
     (addresses || [])
       .filter((address) => address.family === 'IPv4' && !address.internal)
       .map((address) => ({ name, address: address.address })));

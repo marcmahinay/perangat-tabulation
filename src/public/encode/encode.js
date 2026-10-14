@@ -22,6 +22,16 @@ const rowsInputs = [];   // the grid's inputs by row, for moving down a column w
 let pollTimer = null;
 
 const keyOf = (contestantId, criterionId) => `${contestantId}:${criterionId}`;
+
+/**
+ * Forgets the last photo. The browser keeps a photo in memory for as long as
+ * its preview address exists, so each one is released before the next is taken;
+ * otherwise a phone scanning sheet after sheet runs out of memory.
+ */
+function dropPhoto() {
+  if (scan && scan.photoUrl) URL.revokeObjectURL(scan.photoUrl);
+  scan = null;
+}
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 const judgeLabel = (judge) => (judge.name === `Judge ${judge.judge_no}` ? judge.name : `Judge ${judge.judge_no} — ${judge.name}`);
 
@@ -155,7 +165,7 @@ function judgesFor(categoryId) {
 }
 
 async function loadSheet() {
-  scan = null;
+  dropPhoto();
   sheet = null;
   render();
   if (!pick.categoryId || !pick.judgeId) return;
@@ -252,7 +262,12 @@ async function photoDataUrl(file) {
   const url = URL.createObjectURL(file);
   const image = new Image();
   image.src = url;
-  await image.decode();
+  try {
+    await image.decode();
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
   const scale = Math.min(1, PHOTO_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(image.naturalWidth * scale);
@@ -270,6 +285,7 @@ async function scanPhoto(file) {
     toast('That file could not be opened as a photo.', 'error');
     return;
   }
+  dropPhoto();
   scan = { photoUrl: photo.url, reading: true };
   render();
   try {

@@ -70,6 +70,10 @@ function summarise(label, samples, wallMs) {
 async function main() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'perangat-bench-'));
   const server = await startServer({ dbPath: path.join(directory, 'bench.sqlite'), port: 0, host: '127.0.0.1' });
+  // The simulated judges all run on this computer, which the device lock (on by default) refuses.
+  await fetch(`${server.localUrl}/api/admin/device-lock`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }),
+  });
   base = server.localUrl;
 
   try {

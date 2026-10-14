@@ -67,6 +67,8 @@ async function refreshState() {
 
 test.before(async () => {
   server = await startServer({ dbPath: ':memory:', port: 0, host: '127.0.0.1' });
+  // These tests sign judges in from this computer, which the device lock (on by default) refuses.
+  await raw('PUT', '/api/admin/device-lock', { body: { enabled: false } });
   await raw('POST', '/api/admin/contestants', { body: { name: 'Ozamiz City' } });
   await refreshState();
   tokens = [];
@@ -285,6 +287,7 @@ test('repeated wrong access codes lock that device out', async () => {
   // Own server: the lockout would otherwise block the other tests, which share this address.
   const other = await startServer({ dbPath: ':memory:', port: 0, host: '127.0.0.1' });
   try {
+    await raw('PUT', '/api/admin/device-lock', { port: other.port, body: { enabled: false } });
     const judge = (await raw('GET', '/api/admin/state', { port: other.port })).json.judges[0];
     const guess = (accessCode) => raw('POST', '/api/judge/login', { port: other.port, body: { judgeId: judge.id, accessCode } });
 

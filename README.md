@@ -72,7 +72,7 @@ In the admin console's sidebar:
 
 A judge is signed in on **one device at a time**. A second device is refused, even with the right code, until the first signs out or the tabulator presses **Disconnect** on the Judges page. That page shows the device signed in as each judge.
 
-For more control, the **device lock** on the Judges page ties each judge to one device by its MAC address; it applies to the tabulation computer's own browser too. With it on, a device that is not registered to a judge cannot open the judge scoresheet at all. Register a device by having the judge sign in on it and pressing *Use signed-in device*. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#judge-devices).
+The **device lock** on the Judges page ties each judge to one device by its MAC address, and it is **on from the start**. A device that is not registered to a judge cannot open the judge scoresheet at all; that includes the tabulation computer's own browser. To register a judge's device, open the judge address on it: it is turned away and listed under *Devices turned away*, where *Register to a judge…* lets it in. Turn the lock off under Judges to let any device in. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#judge-devices).
 
 Judges enter points per criterion, up to the maximum shown under each column. Scores save as they type. When a category is fully scored the judge presses **Submit final scores**, which locks that scoresheet.
 

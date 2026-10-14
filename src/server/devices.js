@@ -62,10 +62,27 @@ function readNeighbours() {
 /** "::ffff:192.168.1.5" -> "192.168.1.5" */
 const plainAddress = (address) => String(address || '').replace(/^::ffff:/i, '');
 
+const INTERFACES_TTL_MS = 10000;
+let interfaces = null;
+let interfacesReadAt = 0;
+
+/**
+ * This computer's network adapters. Reading them takes several milliseconds on
+ * Windows and blocks the server meanwhile, and every request from a judge's
+ * device needs them, so they are read at most every ten seconds.
+ */
+function networkInterfaces() {
+  if (!interfaces || Date.now() - interfacesReadAt > INTERFACES_TTL_MS) {
+    interfaces = os.networkInterfaces();
+    interfacesReadAt = Date.now();
+  }
+  return interfaces;
+}
+
 /** True for a request made from the tabulation computer itself, by any of its own addresses. */
 function isThisComputer(ip) {
   if (ip === '127.0.0.1' || ip === '::1') return true;
-  return Object.values(os.networkInterfaces()).some((addresses) =>
+  return Object.values(networkInterfaces()).some((addresses) =>
     (addresses || []).some((address) => address.address === ip));
 }
 
@@ -140,9 +157,10 @@ function createDeviceGuard({ db, hub, identify }) {
 
   const tellAdmin = () => hub.broadcast({ type: 'sessions' }, { roles: ['admin'] });
 
+  /** On unless the tabulator has turned it off: a new database starts locked. */
   function locked() {
     const row = db.get("SELECT value FROM settings WHERE key = 'device_lock'");
-    return Boolean(row) && row.value === '1';
+    return !row || row.value !== '0';
   }
 
   function noteBlocked(device) {
@@ -215,4 +233,4 @@ function createDeviceGuard({ db, hub, identify }) {
   };
 }
 
-module.exports = { normalizeMac, parseNeighbours, createDeviceLookup, createDeviceGuard, sameDevice, isThisComputer };
+module.exports = { normalizeMac, parseNeighbours, createDeviceLookup, createDeviceGuard, sameDevice, isThisComputer, networkInterfaces };

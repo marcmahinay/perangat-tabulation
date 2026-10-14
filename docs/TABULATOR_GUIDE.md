@@ -14,8 +14,8 @@ Work through this once, calmly, with at least one real judge device.
 5. **Categories & criteria** — confirm the criteria and weights against the official criteria sheet. Each category should show *Weights total 100%*.
 6. **Judges → Print access slips** — print, cut apart, and keep them safe until the event.
    Also print a set of blank sheets as a fallback: **Categories & criteria → Print blank sheets, all categories**. See *Scoring on paper* below.
-7. Run a rehearsal: sign in on a judge device, enter scores for a few contingents, record a deduction, submit, and print a results sheet.
-8. If you will use the **device lock**, register each judge's device now. See *Judge devices* below.
+7. **Register each judge's device.** The device lock is on from the start, so a judge device can open the judge scoresheet only once it is registered. See *The device lock* below.
+8. Run a rehearsal: sign in on a judge device, enter scores for a few contingents, record a deduction, submit, and print a results sheet.
    If the tabulating team will encode paper sheets, pair their devices under **Encoding**, and set the Claude API key there if photos will be read. See *Encoding paper sheets* below.
 9. **Settings → Clear all scores** — removes the rehearsal scores and keeps the setup.
 10. **Settings → Back up now**.
@@ -124,7 +124,7 @@ A judge who signs out, or whom you disconnect, can sign in on any other device.
 
 ### The device lock
 
-The device lock ties each judge to one device by its **MAC address**, the hardware address of its Wi-Fi or network adapter. With the lock on:
+The device lock ties each judge to one device by its **MAC address**, the hardware address of its Wi-Fi or network adapter. **It is on from the start.** With the lock on:
 
 - only a device registered to a judge can open the judge scoresheet at all;
 - that device can sign in only as the judge it is registered to;
@@ -133,15 +133,15 @@ The device lock ties each judge to one device by its **MAC address**, the hardwa
 
 The lock applies to the tabulation computer too: with it on, a browser there cannot open the judge scoresheet or sign in as a judge, even with the right code. The admin console keeps working. To enter a judge's paper sheet, use the encoder screen (see *Encoding paper sheets*).
 
-To set it up, with every judge device on the event network:
+To register the judges' devices, with every judge device on the event network:
 
-1. Have each judge sign in on the device they will use.
-2. On **Judges**, press **Use signed-in device** on each row. The MAC address appears under **Registered device**. You can also type a MAC address under **Edit**.
-3. Under **Device lock**, press **Turn on**. The app tells you which judges have no registered device and which will be signed out because they are on a different device.
+1. On each judge's device, open the judge address. It is turned away with *This device cannot open the judge scoresheet* and its MAC address.
+2. On **Judges**, under **Device lock**, the device appears in **Devices turned away**. Press **Register to a judge…** and choose the judge who will use it. You can also type a MAC address under **Edit**.
+3. On the device, reload the page. It now opens, and the judge signs in with their access code.
 
-While the lock is on, **Devices turned away** lists every device that tried to open the judge page and was refused. Press **Register to a judge…** to let one in, for example a replacement tablet.
+Until a judge has a registered device, that judge's row says *None — cannot sign in*. Use the same steps for a replacement tablet during the event.
 
-To let any device in again, press **Turn off**. The registrations are kept.
+To let any device in, for example to test the judge screen on this computer, press **Turn off**. The registrations are kept. With the lock off, you can also register a device by having the judge sign in on it and pressing **Use signed-in device** on their row; turn the lock back on afterwards. Turning it on tells you which judges have no registered device and which will be signed out because they are on a different device.
 
 Things to know:
 

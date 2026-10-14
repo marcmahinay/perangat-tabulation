@@ -70,6 +70,9 @@ function categoryResults(db, category, { judgeId = null } = {}) {
     )
     : [];
 
+  const tieVotes = db.all('SELECT id, contestant_ids, placing, note FROM tie_votes WHERE category_id = ?', category.id)
+    .map((vote) => ({ id: vote.id, contestantIds: JSON.parse(vote.contestant_ids), placing: JSON.parse(vote.placing), note: vote.note }));
+
   return computeCategoryResults({
     category,
     criteria: listCriteria(db, category.id),
@@ -77,6 +80,7 @@ function categoryResults(db, category, { judgeId = null } = {}) {
     judges,
     scores,
     deductions,
+    tieVotes,
   });
 }
 

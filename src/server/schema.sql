@@ -11,12 +11,18 @@ CREATE TABLE IF NOT EXISTS judges (
   judge_no    INTEGER NOT NULL UNIQUE,            -- "Judge 1", "Judge 2", ...
   name        TEXT    NOT NULL,
   access_code TEXT    NOT NULL,                   -- handed to the judge by the tabulator
+  device_mac  TEXT,                               -- "A4:83:E7:12:34:56": the one device this judge may use while the device lock is on
   created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A judge is signed in on one device at a time: db.js adds a unique index on
+-- judge_id once it has removed the duplicates an older version allowed.
+-- `ip` and `mac` identify the device the session was opened on.
 CREATE TABLE IF NOT EXISTS judge_sessions (
   token      TEXT    PRIMARY KEY,
   judge_id   INTEGER NOT NULL REFERENCES judges(id) ON DELETE CASCADE,
+  ip         TEXT,
+  mac        TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -69,12 +75,48 @@ CREATE TABLE IF NOT EXISTS scores (
   contestant_id INTEGER NOT NULL REFERENCES contestants(id) ON DELETE CASCADE,
   criterion_id  INTEGER NOT NULL REFERENCES criteria(id)    ON DELETE CASCADE,
   score         REAL    NOT NULL CHECK (score >= 0),
+  entered_by    TEXT,                             -- null = the judge; otherwise the encoder who typed it from the paper sheet
   updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
   UNIQUE (judge_id, contestant_id, criterion_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_scores_criterion  ON scores(criterion_id);
 CREATE INDEX IF NOT EXISTS idx_scores_contestant ON scores(contestant_id);
+
+-- The judges' vote on contingents the tie-break could not separate. It applies
+-- only while exactly these contingents are still tied in this category.
+CREATE TABLE IF NOT EXISTS tie_votes (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id    INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  contestant_ids TEXT    NOT NULL,                -- JSON array of the tied contingents, ascending
+  placing        TEXT    NOT NULL,                -- JSON array of the same contingents, as the judges placed them
+  note           TEXT    NOT NULL DEFAULT '',     -- e.g. the vote count, printed with the result
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (category_id, contestant_ids)
+);
+
+-- A device of the tabulating team, used to encode scores from the judges' paper
+-- sheets. It asks to pair with the team access code and can do nothing until
+-- the tabulator approves it on the tabulation computer.
+CREATE TABLE IF NOT EXISTS encoder_sessions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  token        TEXT    NOT NULL UNIQUE,
+  name         TEXT    NOT NULL,
+  pairing_code TEXT    NOT NULL,                  -- shown on the device, checked by the tabulator before approving
+  status       TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paired')),
+  ip           TEXT,
+  mac          TEXT,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+  paired_at    TEXT
+);
+
+-- The judges whose paper sheets each encoder device may enter. A device with
+-- none assigned can see the screen but cannot open or change any sheet.
+CREATE TABLE IF NOT EXISTS encoder_judges (
+  encoder_id INTEGER NOT NULL REFERENCES encoder_sessions(id) ON DELETE CASCADE,
+  judge_id   INTEGER NOT NULL REFERENCES judges(id)           ON DELETE CASCADE,
+  PRIMARY KEY (encoder_id, judge_id)
+);
 
 -- Submission lock: once a judge submits a category the sheet is read-only
 -- until the tabulator reopens it.

@@ -5,6 +5,7 @@ const express = require('express');
 const { HttpError } = require('../errors');
 const v = require('../validate');
 const { parseCategory, judgeSheet, judgeSheets } = require('../results');
+const { sameDevice } = require('../devices');
 
 const MAX_FAILED_LOGINS = 10;
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
@@ -27,7 +28,8 @@ function judgeForToken(db, token) {
   );
 }
 
-function judgeRoutes({ db, hub }) {
+/** `guard.gate` runs before this router, so every request here carries `req.device`. */
+function judgeRoutes({ db, hub, guard }) {
   const router = express.Router();
   const failedLogins = new Map();
 
@@ -55,21 +57,39 @@ function judgeRoutes({ db, hub }) {
 
     const judgeId = v.id(req.body.judgeId, 'Judge');
     const accessCode = v.text(req.body.accessCode, 'Access code', { max: 32 });
-    const judge = db.get('SELECT id, judge_no, name, access_code FROM judges WHERE id = ?', judgeId);
+    const judge = db.get('SELECT id, judge_no, name, access_code, device_mac FROM judges WHERE id = ?', judgeId);
 
     if (!judge || !sameCode(judge.access_code, accessCode)) {
       failedLogins.set(ip, { count: (attempts ? attempts.count : 0) + 1, resetAt: now + LOGIN_WINDOW_MS });
       throw new HttpError(401, 'Incorrect access code.');
     }
-
     failedLogins.delete(ip);
+
+    const { device } = req;
+    if (guard.locked() && (!device.mac || judge.device_mac !== device.mac)) {
+      throw new HttpError(403, `This is not the device registered for Judge ${judge.judge_no}. Ask the tabulator for help.`);
+    }
+
+    // One device per judge. The same device may sign in again (a closed private
+    // window, another browser); that replaces its earlier session.
+    const current = db.get('SELECT ip, mac FROM judge_sessions WHERE judge_id = ?', judge.id);
+    if (current && !sameDevice(current, device)) {
+      throw new HttpError(409, `Judge ${judge.judge_no} is already signed in on another device. Ask the tabulator to disconnect it first.`);
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
-    db.run('INSERT INTO judge_sessions (token, judge_id) VALUES (?, ?)', token, judge.id);
+    db.tx(() => {
+      db.run('DELETE FROM judge_sessions WHERE judge_id = ?', judge.id);
+      db.run('INSERT INTO judge_sessions (token, judge_id, ip, mac) VALUES (?, ?, ?, ?)', token, judge.id, device.ip, device.mac);
+    });
+    if (current) hub.disconnectJudge(judge.id, 'This scoresheet was signed in to again from another window on this device.');
+    guard.tellAdmin();
     res.json({ token, judge: { id: judge.id, judge_no: judge.judge_no, name: judge.name } });
   });
 
   router.post('/logout', requireJudge, (req, res) => {
     db.run('DELETE FROM judge_sessions WHERE token = ?', req.token);
+    guard.tellAdmin();
     res.json({ ok: true });
   });
 
@@ -122,11 +142,12 @@ function judgeRoutes({ db, hub }) {
       );
     } else {
       const score = v.number(req.body.score, 'Score', { min: 0, max: criterion.weight, decimals: 2 });
+      // The judge typed it, so it is no longer an encoder's entry.
       db.run(
-        `INSERT INTO scores (judge_id, contestant_id, criterion_id, score)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO scores (judge_id, contestant_id, criterion_id, score, entered_by)
+         VALUES (?, ?, ?, ?, NULL)
          ON CONFLICT (judge_id, contestant_id, criterion_id)
-         DO UPDATE SET score = excluded.score, updated_at = datetime('now')`,
+         DO UPDATE SET score = excluded.score, entered_by = NULL, updated_at = datetime('now')`,
         req.judge.id, contestantId, criterionId, score,
       );
     }

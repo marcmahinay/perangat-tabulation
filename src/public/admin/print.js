@@ -2,10 +2,12 @@
 //   print.html?view=results&category=<id|all>
 //   print.html?view=judge&category=<id|all>&judge=<id|all>
 //   print.html?view=codes
+//   print.html?view=blank&category=<id|all>     empty sheets for scoring by hand
 
 import { h, fmt, plain, localTime } from '/shared/dom.js';
 import { request } from '/shared/api.js';
 import { toast } from '/shared/ui.js';
+import { tieNotes, tieRemarks, tieGuidelines, judgeTieNotes } from '/shared/ties.js';
 
 const params = new URLSearchParams(location.search);
 const view = params.get('view') || 'results';
@@ -16,28 +18,106 @@ function filterId(name) {
   return !value || value === 'all' ? null : Number(value);
 }
 
+// Rows printed on a blank sheet for a category that has no contingents entered yet.
+const BLANK_ROWS = 10;
+
+// The marks at the top of every sheet: government on the left, the event on the right.
+const LOGOS = {
+  government: [
+    ['province-seal', 'Province of Misamis Occidental official seal'],
+    ['bagong-pilipinas', 'Bagong Pilipinas'],
+    ['asenso', 'Asenso Misamis Occidental'],
+  ],
+  event: [
+    ['anniversary-97', '97th Provincial Anniversary'],
+    ['perangat-festival', 'Përangat Festival'],
+  ],
+};
+
+const logos = (group) => h('div', { class: `logos ${group}` },
+  LOGOS[group].map(([file, alt]) => h('img', { src: `/shared/logos/${file}.png`, alt })));
+
 function header(state, kind, title) {
   const { settings } = state;
   const meta = [settings.event_venue, settings.event_date].filter(Boolean).join(' · ');
   return h('header', { class: 'sheet-header' },
-    h('div', null, h('h1', null, settings.event_name), meta && h('p', { class: 'meta' }, meta)),
-    h('div', null, h('p', { class: 'kind' }, kind), h('h2', null, title)),
+    logos('government'),
+    h('div', { class: 'heading' },
+      h('h1', null, settings.event_name),
+      meta && h('p', { class: 'meta' }, meta),
+      h('h2', null, title),
+      h('p', { class: 'kind' }, kind),
+    ),
+    logos('event'),
   );
 }
 
-function signature(name, role) {
-  return h('div', { class: 'signature' }, h('div', { class: 'line' }, name || ' '), h('div', { class: 'role' }, role));
+/** The contingents to list on a blank sheet, or empty lines when none are entered yet. */
+function blankRows(result) {
+  return result.rows.length
+    ? result.rows.map((row) => row.contestant)
+    : Array.from({ length: BLANK_ROWS }, () => ({ contestant_no: '', name: '' }));
+}
+
+/** A table with the contingents filled in and every other cell left empty for writing. */
+function blankTable(result, headers) {
+  return h('table', { class: 'sheet blank' },
+    h('thead', null, h('tr', null, headers)),
+    h('tbody', null, blankRows(result).map((contestant) => h('tr', null,
+      h('td', { class: 'no' }, contestant.contestant_no),
+      h('td', { class: 'name' }, contestant.name),
+      headers.slice(2).map(() => h('td')),
+    ))),
+  );
+}
+
+function signature(name, role, detail) {
+  return h('div', { class: 'signature' },
+    h('div', { class: 'line' }, name || ' '),
+    h('div', { class: 'role' }, role),
+    detail && h('div', { class: 'detail' }, detail),
+  );
 }
 
 const judgeName = (judge) => (judge.name === `Judge ${judge.judge_no}` ? '' : judge.name);
+
+/** "Judge 2", or "Judge 2 · Chairman, Board of Judges" for the chairman. */
+const judgeRole = (state, judge) =>
+  (judge.id === state.chairmanJudgeId ? `Judge ${judge.judge_no} · Chairman, Board of Judges` : `Judge ${judge.judge_no}`);
+
+/**
+ * Who signs a category's overall results. The tabulator who prepared the sheet
+ * signs on the left; the board of judges certifies it on the right, with the
+ * chairman last.
+ */
+function resultSignatories(state, judges) {
+  const chairman = judges.find((judge) => judge.id === state.chairmanJudgeId);
+  const members = judges.filter((judge) => judge !== chairman);
+  return h('div', { class: 'signatures arranged' },
+    h('div', { class: 'sign-group' },
+      h('p', { class: 'caption' }, 'Tabulated by:'),
+      h('div', { class: 'sign-row' }, signature(state.settings.tabulator_name, 'Head of Tabulation Team')),
+    ),
+    judges.length > 0 && h('div', { class: 'sign-group' },
+      h('p', { class: 'caption' }, 'Certified correct by the Board of Judges:'),
+      h('div', { class: 'sign-row' },
+        members.map((judge) => signature(judgeName(judge), `Judge ${judge.judge_no}`)),
+        chairman && signature(judgeName(chairman), 'Chairman, Board of Judges'),
+      ),
+    ),
+  );
+}
 
 /** Deductions are always taken from each judge's raw score for the contingent. */
 function deductionSummary(row) {
   return row.deduction ? `${plain(row.deduction)} / judge` : fmt(0);
 }
 
-/** Consolidated results of one category, best rank first. */
-function resultsPage(state, result) {
+/**
+ * Consolidated results of one category, best rank first. With `blank`, the same
+ * sheet in order of performance with nothing filled in, for tabulating by hand.
+ */
+function resultsPage(state, result, { blank = false } = {}) {
   const { category, judges } = result;
   const showDeductions = Boolean(category.apply_deductions);
   const byRankSum = category.ranking_method === 'rank_sum';
@@ -45,21 +125,38 @@ function resultsPage(state, result) {
     (a.rank == null ? Infinity : a.rank) - (b.rank == null ? Infinity : b.rank)
     || a.contestant.contestant_no - b.contestant.contestant_no);
 
-  const remarks = (row) => [row.placement, ...row.deductions.map((deduction) => deduction.name)].filter(Boolean).join('; ');
+  const notes = tieNotes(result);
+  const tied = tieRemarks(result);
+  const tieRemark = (row) => {
+    const remark = tied.get(row.contestant.id);
+    return remark && [remark.label, remark.detail].filter(Boolean).join(': ');
+  };
+  const remarks = (row) => [row.placement, tieRemark(row), ...row.deductions.map((deduction) => deduction.name)]
+    .filter(Boolean).join('; ');
   const dash = (value) => (value == null ? '–' : value);
 
+  const th = (label, small) => h('th', null, label, small && h('small', null, small));
   // Sum-of-ranks sheets follow the festival's own layout: each judge's rank, then the total of the ranks.
-  const table = byRankSum
-    ? h('table', { class: 'sheet' },
-      h('thead', null, h('tr', null,
-        h('th', null, 'No'),
-        h('th', null, 'Name of contingent'),
-        judges.map((judge) => h('th', null, `Judge ${judge.judge_no}`, h('small', null, 'rank'))),
-        h('th', null, 'Total'),
-        h('th', null, 'Rank'),
-        h('th', null, 'Remarks'),
-        showDeductions && h('th', null, 'Deduction'),
-      )),
+  const rankSumHeaders = [
+    th('No'), th('Name of contingent'),
+    ...judges.map((judge) => th(`Judge ${judge.judge_no}`, 'rank')),
+    th('Total'), th('Rank'), th('Remarks'),
+    showDeductions && th('Deduction'),
+  ].filter(Boolean);
+  const averageHeaders = [
+    ...judges.map((judge) => th(`Judge ${judge.judge_no}`)),
+    showDeductions && th('Deduction'),
+    th('Average score', plain(result.maxScore)),
+  ].filter(Boolean);
+
+  let table;
+  if (blank) {
+    table = blankTable(result, byRankSum
+      ? rankSumHeaders
+      : [th('No'), th('Name of contingent'), ...averageHeaders, th('Rank'), th('Remarks')]);
+  } else if (byRankSum) {
+    table = h('table', { class: 'sheet' },
+      h('thead', null, h('tr', null, rankSumHeaders)),
       h('tbody', null, rows.map((row) => h('tr', { class: row.rank === 1 ? 'winner' : '' },
         h('td', { class: 'no' }, row.contestant.contestant_no),
         h('td', { class: 'name' }, row.contestant.name),
@@ -69,17 +166,10 @@ function resultsPage(state, result) {
         h('td', { class: 'remarks' }, remarks(row)),
         showDeductions && h('td', null, deductionSummary(row)),
       ))),
-    )
-    : h('table', { class: 'sheet' },
-      h('thead', null, h('tr', null,
-        h('th', null, 'Rank'),
-        h('th', null, 'No'),
-        h('th', null, 'Name of contingent'),
-        judges.map((judge) => h('th', null, `Judge ${judge.judge_no}`)),
-        showDeductions && h('th', null, 'Deduction'),
-        h('th', null, 'Average score', h('small', null, plain(result.maxScore))),
-        h('th', null, 'Remarks'),
-      )),
+    );
+  } else {
+    table = h('table', { class: 'sheet' },
+      h('thead', null, h('tr', null, th('Rank'), th('No'), th('Name of contingent'), averageHeaders, th('Remarks'))),
       h('tbody', null, rows.map((row) => h('tr', { class: row.rank === 1 ? 'winner' : '' },
         h('td', { class: 'rank' }, dash(row.rank)),
         h('td', { class: 'no' }, row.contestant.contestant_no),
@@ -90,47 +180,82 @@ function resultsPage(state, result) {
         h('td', { class: 'remarks' }, remarks(row)),
       ))),
     );
+  }
+
+  let kind = result.isFinal ? 'Official results' : 'Results';
+  if (blank) kind = 'Tabulation sheet';
 
   return h('section', { class: 'page' },
-    header(state, result.isFinal ? 'Official results' : 'Results', category.name),
-    !result.isFinal && h('div', { class: 'stamp' }, 'PROVISIONAL — NOT ALL JUDGES HAVE SUBMITTED THEIR SCORESHEETS'),
+    header(state, kind, category.name),
+    !blank && !result.isFinal && h('div', { class: 'stamp' }, 'PROVISIONAL — NOT ALL JUDGES HAVE SUBMITTED THEIR SCORESHEETS'),
+    !blank && result.isFinal && result.pendingVotes.length > 0
+      && h('div', { class: 'stamp' }, 'NOT FINAL — A TIE IS WAITING FOR THE JUDGES\' VOTE'),
     table,
+    !blank && notes.length > 0 && h('div', { class: 'notes ties' },
+      h('h3', null, notes.length === 1 ? 'Tie in this category' : 'Ties in this category'),
+      h('ul', null, notes.map((note) => h('li', null, note))),
+    ),
+    h('div', { class: 'notes' },
+      h('h3', null, 'Tie-break guidelines'),
+      h('ol', null, tieGuidelines(result).map((rule) => h('li', null, rule))),
+    ),
     h('p', { class: 'footnote' },
       byRankSum
-        ? "Each judge's final score is the raw score less deductions. Each judge ranks the contingents by final score; equal scores share the average of their places. Total = sum of the judges' ranks; the lowest total wins. A tie in the total goes to the higher average score."
+        ? "Each judge's final score is the raw score less deductions. Each judge ranks the contingents by final score; equal scores share the average of their places. Total = sum of the judges' ranks; the lowest total wins."
         : "Each judge's final score is the raw score" + (showDeductions ? ' less deductions' : '') + ". The highest average of the judges' final scores wins.",
       ` Printed ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`,
     ),
-    h('div', { class: 'signatures' },
-      judges.map((judge) => signature(judgeName(judge), `Judge ${judge.judge_no}`)),
-      signature(state.settings.tabulator_name, 'Tabulator'),
-    ),
+    resultSignatories(state, judges),
   );
 }
 
-/** One judge's detailed scoresheet for one category, in order of performance. */
-function judgePage(state, result, judge) {
+/**
+ * One judge's detailed scoresheet for one category, in order of performance.
+ * With `blank`, the same sheet with nothing filled in, for scoring by hand.
+ */
+function judgePage(state, result, judge, { blank = false } = {}) {
   const { category, criteria } = result;
   const showDeductions = Boolean(category.apply_deductions);
   const submitted = judge.status === 'submitted';
   // The judge's top contingent is highlighted. A tie for first has a fractional rank such as 1.5, so compare with the best rank given.
   const given = result.rows.map((row) => row.judges[judge.id].rank).filter((rank) => rank != null);
   const bestRank = given.length ? Math.min(...given) : null;
+  const notes = judgeTieNotes(result, judge.id);
+
+  const headers = [
+    h('th', null, 'No'),
+    h('th', null, 'Name of contingent'),
+    ...criteria.map((criterion) => h('th', null, criterion.name, h('small', null, plain(criterion.weight)))),
+    h('th', null, 'Total score', h('small', null, plain(result.maxScore))),
+    showDeductions && h('th', null, 'Deduction'),
+    showDeductions && h('th', null, 'Final score', h('small', null, plain(result.maxScore))),
+    h('th', null, 'Rank'),
+    h('th', null, 'Remarks'),
+  ].filter(Boolean);
+
+  if (blank) {
+    return h('section', { class: 'page' },
+      header(state, `Judge ${judge.judge_no} scoresheet`, category.name),
+      blankTable(result, headers),
+      h('p', { class: 'footnote' },
+        'Write the points you give for each criterion, up to the maximum printed under its name. Up to two decimal places may be used. ',
+        'Total score is the sum of the criteria. ',
+        showDeductions
+          ? 'Deduction, final score and rank are filled in by the tabulator.'
+          : 'Rank is filled in by the tabulator.',
+      ),
+      h('div', { class: 'signatures' },
+        signature(judgeName(judge), judgeRole(state, judge), 'Signature over printed name'),
+        signature('', 'Date and time'),
+      ),
+    );
+  }
 
   return h('section', { class: 'page' },
     header(state, `Judge ${judge.judge_no} scoresheet`, category.name),
     !submitted && h('div', { class: 'stamp' }, 'DRAFT — THIS SCORESHEET HAS NOT BEEN SUBMITTED'),
     h('table', { class: 'sheet' },
-      h('thead', null, h('tr', null,
-        h('th', null, 'No'),
-        h('th', null, 'Name of contingent'),
-        criteria.map((criterion) => h('th', null, criterion.name, h('small', null, plain(criterion.weight)))),
-        h('th', null, 'Total score', h('small', null, plain(result.maxScore))),
-        showDeductions && h('th', null, 'Deduction'),
-        showDeductions && h('th', null, 'Final score', h('small', null, plain(result.maxScore))),
-        h('th', null, 'Rank'),
-        h('th', null, 'Remarks'),
-      )),
+      h('thead', null, h('tr', null, headers)),
       h('tbody', null, result.rows.map((row) => {
         const entry = row.judges[judge.id];
         const reasons = showDeductions
@@ -148,11 +273,15 @@ function judgePage(state, result, judge) {
         );
       })),
     ),
+    notes.length > 0 && h('div', { class: 'notes ties' },
+      h('h3', null, 'Equal scores on this sheet'),
+      h('ul', null, notes.map((note) => h('li', null, note))),
+    ),
     h('p', { class: 'footnote' },
       submitted ? `Submitted ${localTime(judge.submitted_at)}.` : 'Not yet submitted.',
       ` Printed ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`,
     ),
-    h('div', { class: 'signatures' }, signature(judgeName(judge), `Judge ${judge.judge_no}`)),
+    h('div', { class: 'signatures' }, signature(judgeName(judge), judgeRole(state, judge))),
   );
 }
 
@@ -183,6 +312,13 @@ function buildPages(state, results) {
       .filter((judge) => judgeId == null || judge.id === judgeId)
       .map((judge) => judgePage(state, result, judge)));
   }
+  // Per category: one empty scoresheet for each judge to sign, then the empty tabulation sheet.
+  if (view === 'blank') {
+    return categories.flatMap((result) => [
+      ...result.judges.map((judge) => judgePage(state, result, judge, { blank: true })),
+      resultsPage(state, result, { blank: true }),
+    ]);
+  }
   return categories.map((result) => resultsPage(state, result));
 }
 
@@ -200,7 +336,7 @@ async function main() {
   }
 
   const built = buildPages(state, results);
-  const label = { results: 'Results', judge: 'Judge scoresheets', codes: 'Judge access slips' }[view] || 'Print';
+  const label = { results: 'Results', judge: 'Judge scoresheets', codes: 'Judge access slips', blank: 'Blank sheets' }[view] || 'Print';
   document.title = `${state.settings.event_name} - ${label}`;
 
   if (built.length === 0) {
@@ -209,7 +345,7 @@ async function main() {
     pages.append(...built);
   }
 
-  toolbar.append(
+  toolbar.append(...[
     h('span', { class: 'summary' }, `${label} · ${built.length} page${built.length === 1 ? '' : 's'}`),
     h('button', { class: 'btn', onclick: () => window.print() }, 'Print'),
     // Only the desktop app can write a PDF directly; in a browser, "Print" offers "Save as PDF".
@@ -226,7 +362,7 @@ async function main() {
       },
     }, 'Save as PDF'),
     h('button', { class: 'btn', onclick: () => window.close() }, 'Close'),
-  );
+  ].filter(Boolean));
 }
 
 main();

@@ -7,9 +7,12 @@ const express = require('express');
 const { Database } = require('./db');
 const { HttpError } = require('./errors');
 const { createHub } = require('./realtime');
+const { createDeviceLookup, createDeviceGuard } = require('./devices');
 const publicRoutes = require('./routes/public');
 const judgeRoutes = require('./routes/judge');
 const adminRoutes = require('./routes/admin');
+const encodeRoutes = require('./routes/encode');
+const { createSheetReader } = require('./scan');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const PORT_ATTEMPTS = 10;
@@ -94,8 +97,11 @@ function listen(server, port, host, attempts) {
 /**
  * Opens the database and starts the HTTP + WebSocket server.
  * Binding to 0.0.0.0 makes it reachable from every device on the LAN.
+ * `identify(req)` says which device a request comes from; the default reads
+ * this computer's neighbour table. `readSheet(image, layout)` reads a photo of
+ * a paper scoresheet; the default asks Claude, with the key saved under Encoding.
  */
-async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
+async function startServer({ dbPath, port = 3000, host = '0.0.0.0', identify = createDeviceLookup(), readSheet = null }) {
   const db = new Database(dbPath);
   const app = express();
   const server = http.createServer(app);
@@ -116,13 +122,21 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
       return judge ? { role: 'judge', judgeId: judge.id } : null;
     },
   });
+  const guard = createDeviceGuard({ db, hub, identify });
+  // The key can be set in the admin console; the environment variable is the fallback.
+  const scanKey = () => {
+    const row = db.get("SELECT value FROM settings WHERE key = 'anthropic_api_key'");
+    return (row && row.value) || process.env.ANTHROPIC_API_KEY || '';
+  };
+  const sheetReader = readSheet || createSheetReader({ apiKey: scanKey });
 
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     // Everything the pages need is served from here; nothing may be loaded from elsewhere.
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; frame-ancestors 'none'",
+      // blob: lets the encoder screen show the photo it just took, before it is sent.
+      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'",
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -133,20 +147,26 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
-  app.use(express.json({ limit: '100kb' }));
+  // Every request body is small, except a photo of a paper scoresheet, which that route parses itself.
+  const smallJson = express.json({ limit: '100kb' });
+  app.use((req, res, next) => (req.path === '/api/encode/scan' ? next() : smallJson(req, res, next)));
   app.use((req, res, next) => {
     req.body = req.body || {};
     next();
   });
 
-  app.use('/api/public', publicRoutes({ db }));
-  app.use('/api/judge', judgeRoutes({ db, hub }));
-  app.use('/api/admin', localOnly, adminRoutes({ db, hub, serverInfo }));
+  // Everything a judge device asks for passes the device guard first.
+  app.use('/api/public', guard.gate, publicRoutes({ db }));
+  app.use('/api/judge', guard.gate, judgeRoutes({ db, hub, guard }));
+  app.use('/api/admin', localOnly, adminRoutes({ db, hub, serverInfo, guard, scanKey }));
+  // Encoder devices are protected by pairing, not by the judges' device lock.
+  app.use('/api/encode', encodeRoutes({ db, hub, identify, readSheet: sheetReader }));
   app.use('/api', (req, res, next) => next(new HttpError(404, 'Not found.')));
 
   app.get('/', (req, res) => res.redirect('/judge/'));
   app.use('/shared', express.static(path.join(PUBLIC_DIR, 'shared')));
-  app.use('/judge', express.static(path.join(PUBLIC_DIR, 'judge')));
+  app.use('/judge', guard.gate, express.static(path.join(PUBLIC_DIR, 'judge')));
+  app.use('/encode', express.static(path.join(PUBLIC_DIR, 'encode')));
   app.use('/admin', localOnly, express.static(path.join(PUBLIC_DIR, 'admin')));
 
   // eslint-disable-next-line no-unused-vars
@@ -158,7 +178,8 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0' }) {
       if (/UNIQUE/.test(message)) message = 'That number or name is already in use.';
       else if (/FOREIGN KEY/.test(message)) message = 'This record is still in use, or refers to something that no longer exists.';
       else message = 'The change conflicts with existing data.';
-    } else if (status >= 500) {
+    } else if (status >= 500 && !(error instanceof HttpError)) {
+      // An HttpError's message is written for people (the photo reader being offline, say); anything else is a bug.
       console.error(error);
       message = 'Unexpected server error.';
     }

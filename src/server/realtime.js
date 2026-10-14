@@ -37,6 +37,15 @@ function createHub({ server, authenticate }) {
 
   const announcePresence = () => broadcast({ type: 'presence', onlineJudgeIds: onlineJudgeIds() }, { roles: ['admin'] });
 
+  /** Closes a judge's connections after their session has ended, telling the device why first. */
+  function disconnectJudge(judgeId, message) {
+    for (const [ws, client] of clients) {
+      if (client.role !== 'judge' || client.judgeId !== judgeId) continue;
+      send(ws, { type: 'signed_out', message });
+      ws.close(4001, 'Signed out');
+    }
+  }
+
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, 'http://localhost');
     const client = url.pathname === '/ws' ? authenticate(req, url) : null;
@@ -79,7 +88,7 @@ function createHub({ server, authenticate }) {
     wss.close();
   }
 
-  return { broadcast, onlineJudgeIds, close };
+  return { broadcast, onlineJudgeIds, disconnectJudge, close };
 }
 
 module.exports = { createHub };

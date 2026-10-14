@@ -1,6 +1,6 @@
 # Perangat Tabulation
 
-A dance contest tabulation system for the Perangat Festival that runs entirely on a local network. One computer runs the app; judges score from the browser on their own tablet, laptop or phone. No internet is needed.
+A dance contest tabulation system for the Perangat Festival that runs entirely on a local network. One computer runs the app; judges score from the browser on their own tablet, laptop or phone. No internet is needed, except to read photos of paper scoresheets (optional).
 
 - **Tabulation computer** — an Electron desktop app. It holds the SQLite database, serves the judge pages, computes totals, deductions and rankings, and prints results.
 - **Judge devices** — any modern browser on the same Wi-Fi or LAN. Nothing to install.
@@ -59,16 +59,20 @@ The admin console opens. The first time, Windows Firewall asks whether to allow 
 In the admin console's sidebar:
 
 1. **Settings** — enter the event name, venue, date and the tabulator's name (printed on the results).
-2. **Judges** — three judges are created to start with. Rename them, add more, and note each judge's **access code**. New codes are six digits; you can set your own of 4 to 12 letters or digits, but shorter codes are easier to guess. *Print access slips* gives you a cut-apart sheet to hand out.
+2. **Judges** — three judges are created to start with. Rename them, add more, and note each judge's **access code**. A new judge is numbered automatically with the lowest free number. Under **Signatories**, choose the chairman of the board of judges and enter the tabulator's name. New codes are six digits; you can set your own of 4 to 12 letters or digits, but shorter codes are easier to guess. *Print access slips* gives you a cut-apart sheet to hand out.
 3. **Contingents** — add the competing groups in order of performance. *Add several* takes one name per line.
 4. **Categories & criteria** — check the criteria and weights. Each category should total 100%.
 
 ## Connect the judges
 
 1. Connect the tabulation computer and every judge device to the **same Wi-Fi or LAN**.
-2. Open **Live monitor** in the admin console. The purple box at the top shows the address judges use, for example `http://192.168.1.10:3000`.
+2. Open **Live monitor** in the admin console. The blue box at the top shows the address judges use, for example `http://192.168.1.10:3000`.
 3. On each judge device, open a browser and type that address exactly, including `http://` and the `:3000`.
 4. The judge picks their name, enters their access code and signs in.
+
+A judge is signed in on **one device at a time**. A second device is refused, even with the right code, until the first signs out or the tabulator presses **Disconnect** on the Judges page. That page shows the device signed in as each judge.
+
+For more control, the **device lock** on the Judges page ties each judge to one device by its MAC address; it applies to the tabulation computer's own browser too. With it on, a device that is not registered to a judge cannot open the judge scoresheet at all. Register a device by having the judge sign in on it and pressing *Use signed-in device*. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#judge-devices).
 
 Judges enter points per criterion, up to the maximum shown under each column. Scores save as they type. When a category is fully scored the judge presses **Submit final scores**, which locks that scoresheet.
 
@@ -85,12 +89,19 @@ If a device cannot connect:
 - **Deductions** — record time and safety penalties. For timed rules, type the measured time (for example `6:15`) and the app works out the points.
 - **Results** — live totals and ranking per category. Results are marked *Provisional* until every judge assigned to the category has submitted.
 
+## Encoding paper scoresheets
+
+When judges score on paper, the tabulating team enters the sheets on the **encoder screen** (`/encode/` on the judge address) from their own phones or laptops. A device pairs with the encoder access code and can do nothing until the tabulator approves its four-digit pairing code under **Encoding**, ticking the judges whose sheets it may enter; it cannot open any other judge's sheet. The encoder picks a category and judge, then types the scores, or photographs the sheet: Claude reads the handwriting and fills the grid, marking anything unclear or impossible, and the encoder checks and corrects every number before saving. Reading photos needs a Claude API key (set under **Encoding**) and internet on the tabulation computer; typing works offline. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#encoding-paper-sheets).
+
 ## Printing
 
 From **Results**:
 
-- *Print this category* / *Print all categories* — official results sorted by rank: the rank each judge gave, the rank total, final rank, remarks and deductions, with signature lines for the judges and the tabulator.
+- *Print this category* / *Print all categories* — official results sorted by rank: the rank each judge gave, the rank total, final rank, remarks and deductions, an explanation of any tie and the tie-break guidelines. Signed by the tabulator on the left (*Tabulated by*) and by the board of judges on the right (*Certified correct by the Board of Judges*), with the chairman last.
 - *Print judge scoresheets* — one detailed sheet per judge, with every criterion score, total (raw) score, deduction, final score and rank.
+- *Print blank sheets* — for scoring by hand and encoding afterwards: an empty scoresheet for each judge of the category to fill in and sign, and an empty tabulation sheet with signature lines for the judges and the tabulator. *Categories & criteria → Print blank sheets, all categories* prints them for every category at once.
+
+Every sheet carries the official marks across the top: the Province of Misamis Occidental seal, Bagong Pilipinas and Asenso Misamis Occidental on the left, and the 97th Provincial Anniversary and Përangat Festival logos on the right. The app's own colours are taken from the 97th Provincial Anniversary logo.
 
 Each print view has **Print** (the system print dialog) and **Save as PDF** buttons.
 
@@ -106,7 +117,16 @@ Every category is ranked by the **sum of the judges' ranks**, the same way as th
 
 Fractional ranks mean every judge gives out the same number of rank points whether or not they tie anyone, so a judge who gives equal scores does not hand those contingents a better rank than a judge who separates them.
 
-If two contingents have the same rank total, the one with the higher average score is placed first. If the average is also equal they share the placing. Final placings are always whole numbers.
+### Tie-break guidelines
+
+1. Equal scores on one judge's sheet share the average of the places they cover (step 3 above). They are not separated further.
+2. Contingents with the same rank total are placed by average score, the mean of every judge's final score for the contingent. The higher average is placed first.
+3. Contingents with the same rank total and the same average score are placed by a majority vote of the judges. If the vote is level, the chairman of the board of judges decides.
+4. Averages count as the same only when they are equal to six decimal places. The tabulator records the result of any vote in the app (**Results → Record judges' vote**), and the results sheet shows each placing that was decided by vote. Until it is recorded, the tied contingents share the placing and the category is flagged *TIE · JUDGES TO VOTE*.
+
+A category ranked by average score uses rules 3 and 4: equal averages go to the judges' vote.
+
+Whenever a category has a tie, the Results screen and the printed results name the tied contingents, the figure they are tied on and how the tie was settled, and mark each tied row. The guidelines are printed on every results sheet.
 
 Because deductions are taken off before the judges are ranked, a deduction can move a contingent down on every judge's sheet. A judge's score cannot go below zero.
 

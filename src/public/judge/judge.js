@@ -139,6 +139,7 @@ async function showLogin(notice) {
       }
     },
   },
+    h('img', { class: 'login-logo', src: '/shared/logos/anniversary-97.png', alt: '97th Provincial Anniversary' }),
     h('h1', null, info.eventName),
     h('p', { class: 'subtitle' }, 'Judge scoresheet'),
     error,
@@ -271,6 +272,7 @@ function topbar() {
   frame.statusText = h('span');
   frame.status = h('span', { class: 'save-status' }, frame.statusDot, frame.statusText);
   return h('header', { class: 'topbar' },
+    h('img', { class: 'mark', src: '/shared/logos/anniversary-97-mark.png', alt: '97th Provincial Anniversary' }),
     h('span', { class: 'event' }, data.event.name),
     h('span', { class: 'who' }, judgeLabel(data.judge)),
     h('span', { class: 'spacer' }),
@@ -515,6 +517,11 @@ function openLive() {
       if (pending.size) schedulePump(0);
     },
     onEvent(event) {
+      // The tabulator ended this session, or this judge signed in somewhere else.
+      if (event.type === 'signed_out') {
+        endSession(event.message);
+        return;
+      }
       const mine = event.type === 'sheets' && data && event.judgeId === data.judge.id;
       if (event.type === 'config' || event.type === 'deductions' || mine) loadSheets().catch(() => {});
     },

@@ -6,8 +6,10 @@ const express = require('express');
 const { HttpError } = require('../errors');
 const v = require('../validate');
 const { computeDeductionCharge } = require('../scoring');
-const { listCategories, listCriteria, buildResults } = require('../results');
+const { listCategories, listCriteria, buildResults, categoryResults, parseCategory } = require('../results');
 const { randomAccessCode } = require('../seed');
+const { normalizeMac } = require('../devices');
+const { encoderAccessCode } = require('./encode');
 
 const SETTING_KEYS = ['event_name', 'event_subtitle', 'event_venue', 'event_date', 'tabulator_name'];
 const RANKING_METHODS = ['average', 'rank_sum'];
@@ -16,7 +18,7 @@ const UNITS = ['flat', 'per_minute', 'per_started_minute'];
 const blank = (value) => value == null || value === '';
 
 /** Tabulator-only endpoints. index.js restricts this router to the host computer. */
-module.exports = function adminRoutes({ db, hub, serverInfo }) {
+module.exports = function adminRoutes({ db, hub, serverInfo, guard, scanKey }) {
   const router = express.Router();
 
   const notify = (type, extra = {}) => hub.broadcast({ type, ...extra });
@@ -29,6 +31,33 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
 
   function nextNumber(table, column) {
     return db.get(`SELECT COALESCE(MAX(${column}), 0) + 1 AS next FROM ${table}`).next;
+  }
+
+  /** The smallest number not in use, so deleting Judge 2 and adding a judge gives a new Judge 2. */
+  function lowestFreeNumber(table, column) {
+    const used = new Set(db.all(`SELECT ${column} AS number FROM ${table}`).map((row) => row.number));
+    let number = 1;
+    while (used.has(number)) number += 1;
+    return number;
+  }
+
+  /** The judge who chairs the board of judges, or null. A stale setting (the judge was deleted) counts as none. */
+  function chairmanId() {
+    const row = db.get("SELECT value FROM settings WHERE key = 'chairman_judge_id'");
+    const id = row ? Number(row.value) : 0;
+    return id && db.get('SELECT 1 AS ok FROM judges WHERE id = ?', id) ? id : null;
+  }
+
+  function savedScanKey() {
+    const row = db.get("SELECT value FROM settings WHERE key = 'anthropic_api_key'");
+    return row ? row.value : '';
+  }
+
+  function setSetting(key, value) {
+    db.run(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      key, value,
+    );
   }
 
   function allIds(table) {
@@ -68,12 +97,42 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     };
     const judgeLinks = linksByOwner('category_judges', 'judge_id');
     const contestantLinks = linksByOwner('category_contestants', 'contestant_id');
+    // The device each judge is signed in on, whether or not it is connected right now.
+    const sessions = new Map(
+      db.all('SELECT judge_id, ip, mac, created_at FROM judge_sessions')
+        .map((session) => [session.judge_id, { ip: session.ip, mac: session.mac, since: session.created_at }]),
+    );
+    const chairman = chairmanId();
+    const encoderJudges = new Map();
+    for (const link of db.all('SELECT encoder_id, judge_id FROM encoder_judges')) {
+      if (!encoderJudges.has(link.encoder_id)) encoderJudges.set(link.encoder_id, []);
+      encoderJudges.get(link.encoder_id).push(link.judge_id);
+    }
 
     return {
-      settings: Object.fromEntries(db.all('SELECT key, value FROM settings').map((row) => [row.key, row.value])),
+      // The Claude API key is kept out of every response.
+      settings: Object.fromEntries(db.all("SELECT key, value FROM settings WHERE key <> 'anthropic_api_key'").map((row) => [row.key, row.value])),
       server: { port: serverInfo.port, urls: serverInfo.urls(), dbPath: serverInfo.dbPath },
-      judges: db.all('SELECT id, judge_no, name, access_code FROM judges ORDER BY judge_no')
-        .map((judge) => ({ ...judge, categoryIds: judgeLinks.get(judge.id) || [] })),
+      deviceLock: guard.locked(),
+      blockedDevices: guard.blocked(),
+      encoders: {
+        accessCode: encoderAccessCode(db),
+        devices: db.all(
+          `SELECT id, name, pairing_code, status, ip, mac, created_at, paired_at
+             FROM encoder_sessions
+            ORDER BY status = 'paired', created_at`,
+        ).map((device) => ({ ...device, judgeIds: encoderJudges.get(device.id) || [] })),
+      },
+      // The key itself never leaves the server; the console only learns whether one is set.
+      scan: { ready: Boolean(scanKey()), fromEnvironment: Boolean(process.env.ANTHROPIC_API_KEY) && !savedScanKey() },
+      chairmanJudgeId: chairman,
+      judges: db.all('SELECT id, judge_no, name, access_code, device_mac FROM judges ORDER BY judge_no')
+        .map((judge) => ({
+          ...judge,
+          is_chairman: judge.id === chairman,
+          categoryIds: judgeLinks.get(judge.id) || [],
+          session: sessions.get(judge.id) || null,
+        })),
       contestants: db.all('SELECT id, contestant_no, name FROM contestants ORDER BY contestant_no')
         .map((contestant) => ({ ...contestant, categoryIds: contestantLinks.get(contestant.id) || [] })),
       categories: listCategories(db).map((category) => ({ ...category, criteria: listCriteria(db, category.id) })),
@@ -93,11 +152,7 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     db.tx(() => {
       for (const key of SETTING_KEYS) {
         if (req.body[key] === undefined) continue;
-        const value = v.text(req.body[key], key, { max: 200, required: key === 'event_name' });
-        db.run(
-          'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
-          key, value,
-        );
+        setSetting(key, v.text(req.body[key], key, { max: 200, required: key === 'event_name' }));
       }
     });
     notify('config');
@@ -114,12 +169,29 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     if (!/^[A-Za-z0-9]{4,12}$/.test(accessCode)) {
       throw new HttpError(400, 'Access code must be 4 to 12 letters or digits.');
     }
+
+    // Left out = keep the registered device; blank = any device.
+    let deviceMac = existing ? existing.device_mac : null;
+    if (body.device_mac !== undefined) {
+      deviceMac = blank(body.device_mac) ? null : normalizeMac(body.device_mac);
+      if (!blank(body.device_mac) && !deviceMac) {
+        throw new HttpError(400, 'Enter the MAC address as six pairs of letters and digits, for example A4:83:E7:12:34:56.');
+      }
+    }
+    if (deviceMac) {
+      const owner = db.get('SELECT id, judge_no FROM judges WHERE device_mac = ?', deviceMac);
+      if (owner && (!existing || owner.id !== existing.id)) {
+        throw new HttpError(409, `That device is already registered to Judge ${owner.judge_no}.`);
+      }
+    }
+
     return {
       name: v.text(body.name, 'Judge name', { max: 120 }),
       judge_no: blank(body.judge_no)
-        ? (existing ? existing.judge_no : nextNumber('judges', 'judge_no'))
+        ? (existing ? existing.judge_no : lowestFreeNumber('judges', 'judge_no'))
         : v.number(body.judge_no, 'Judge number', { integer: true, min: 1, max: 999 }),
       access_code: accessCode,
+      device_mac: deviceMac,
     };
   }
 
@@ -128,8 +200,8 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     const categoryIds = categoryIdsFrom(req.body);
     const id = db.tx(() => {
       const { lastInsertRowid } = db.run(
-        'INSERT INTO judges (judge_no, name, access_code) VALUES (?, ?, ?)',
-        fields.judge_no, fields.name, fields.access_code,
+        'INSERT INTO judges (judge_no, name, access_code, device_mac) VALUES (?, ?, ?, ?)',
+        fields.judge_no, fields.name, fields.access_code, fields.device_mac,
       );
       setCategoryLinks('category_judges', 'judge_id', lastInsertRowid, categoryIds);
       return lastInsertRowid;
@@ -143,26 +215,115 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
     const fields = judgeFields(req.body, judge);
     db.tx(() => {
       db.run(
-        'UPDATE judges SET judge_no = ?, name = ?, access_code = ? WHERE id = ?',
-        fields.judge_no, fields.name, fields.access_code, judge.id,
+        'UPDATE judges SET judge_no = ?, name = ?, access_code = ?, device_mac = ? WHERE id = ?',
+        fields.judge_no, fields.name, fields.access_code, fields.device_mac, judge.id,
       );
       if (!blank(req.body.categoryIds)) {
         setCategoryLinks('category_judges', 'judge_id', judge.id, v.idList(req.body.categoryIds, 'Categories'));
       }
-      // A changed code must lock out whoever was signed in with the old one.
-      if (fields.access_code !== judge.access_code) {
-        db.run('DELETE FROM judge_sessions WHERE judge_id = ?', judge.id);
-      }
     });
+    // A changed code must lock out whoever was signed in with the old one.
+    if (fields.access_code !== judge.access_code) {
+      guard.signOut(judge.id, 'Your access code was changed. Ask the tabulator for the new one.');
+    }
+    guard.enforce();
     notify('config');
     res.json({ ok: true });
   });
 
   router.delete('/judges/:id', (req, res) => {
     const judge = find('judges', v.id(req.params.id), 'Judge');
-    db.run('DELETE FROM judges WHERE id = ?', judge.id);
+    db.tx(() => {
+      if (chairmanId() === judge.id) setSetting('chairman_judge_id', '');
+      db.run('DELETE FROM judges WHERE id = ?', judge.id);
+    });
+    hub.disconnectJudge(judge.id, 'This judge was removed by the tabulator.');
     notify('config');
     res.json({ ok: true });
+  });
+
+  // Who signs the overall results: the judge who chairs the board of judges, and the tabulator.
+  router.put('/signatories', (req, res) => {
+    let chairman = null;
+    if (!blank(req.body.chairmanJudgeId)) {
+      chairman = find('judges', v.id(req.body.chairmanJudgeId, 'Chairman'), 'Judge').id;
+    }
+    const tabulator = v.text(req.body.tabulatorName, 'Head of Tabulation Team', { max: 200, required: false });
+    db.tx(() => {
+      setSetting('chairman_judge_id', chairman == null ? '' : String(chairman));
+      setSetting('tabulator_name', tabulator);
+    });
+    notify('config');
+    res.json({ ok: true });
+  });
+
+  // ---- Encoders: the tabulating team's devices --------------------------------
+
+  const tellEncoders = () => hub.broadcast({ type: 'encoders' }, { roles: ['admin'] });
+
+  /** Replaces the judges an encoder device may enter sheets for. */
+  function setEncoderJudges(deviceId, body) {
+    const judgeIds = blank(body.judgeIds) ? [] : v.idList(body.judgeIds, 'Judges');
+    for (const judgeId of judgeIds) find('judges', judgeId, 'Judge');
+    db.run('DELETE FROM encoder_judges WHERE encoder_id = ?', deviceId);
+    for (const judgeId of judgeIds) db.run('INSERT INTO encoder_judges (encoder_id, judge_id) VALUES (?, ?)', deviceId, judgeId);
+  }
+
+  router.post('/encoders/:id/approve', (req, res) => {
+    const device = find('encoder_sessions', v.id(req.params.id), 'Encoder device');
+    db.tx(() => {
+      db.run("UPDATE encoder_sessions SET status = 'paired', paired_at = datetime('now') WHERE id = ?", device.id);
+      if (req.body.judgeIds !== undefined) setEncoderJudges(device.id, req.body);
+    });
+    tellEncoders();
+    res.json({ ok: true });
+  });
+
+  router.put('/encoders/:id/judges', (req, res) => {
+    const device = find('encoder_sessions', v.id(req.params.id), 'Encoder device');
+    db.tx(() => setEncoderJudges(device.id, req.body));
+    tellEncoders();
+    res.json({ ok: true });
+  });
+
+  // Turns down a pairing request, or unpairs a device that was approved.
+  router.delete('/encoders/:id', (req, res) => {
+    const device = find('encoder_sessions', v.id(req.params.id), 'Encoder device');
+    db.run('DELETE FROM encoder_sessions WHERE id = ?', device.id);
+    tellEncoders();
+    res.json({ ok: true });
+  });
+
+  // A new team code stops new pairings with the old one; devices already paired stay paired.
+  router.post('/encoder-code', (req, res) => {
+    setSetting('encoder_access_code', randomAccessCode());
+    tellEncoders();
+    res.json({ ok: true });
+  });
+
+  router.put('/scan-key', (req, res) => {
+    const key = v.text(req.body.apiKey, 'API key', { max: 300, required: false });
+    if (key && !/^sk-ant-[A-Za-z0-9_-]+$/.test(key)) {
+      throw new HttpError(400, 'That does not look like a Claude API key. It starts with sk-ant-.');
+    }
+    setSetting('anthropic_api_key', key);
+    notify('config');
+    res.json({ ok: true, ready: Boolean(scanKey()) });
+  });
+
+  // Ends a judge's session, for when the wrong person or the wrong device is signed in.
+  router.post('/judges/:id/disconnect', (req, res) => {
+    const judge = find('judges', v.id(req.params.id), 'Judge');
+    guard.signOut(judge.id, 'The tabulator disconnected this device. Sign in again if this is your scoresheet.');
+    res.json({ ok: true });
+  });
+
+  // With the lock on, only a judge's registered device can open the judge pages.
+  router.put('/device-lock', (req, res) => {
+    setSetting('device_lock', req.body.enabled === true ? '1' : '0');
+    guard.enforce();
+    notify('config');
+    res.json({ ok: true, enabled: guard.locked() });
   });
 
   // ---- Contingents ----------------------------------------------------------
@@ -418,6 +579,36 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
 
   // ---- Scoresheet locks and maintenance -------------------------------------
 
+  // ---- The judges' vote on a tie the tie-break could not separate -------------
+
+  router.post('/tie-votes', (req, res) => {
+    const category = parseCategory(find('categories', v.id(req.body.categoryId, 'Category'), 'Category'));
+    const placing = v.idList(req.body.placing, 'Placing');
+    const note = v.text(req.body.note, 'Vote', { max: 120, required: false });
+
+    // The vote must be for a tie that is waiting for one right now.
+    const ids = [...placing].sort((a, b) => a - b);
+    const pending = categoryResults(db, category).pendingVotes
+      .find((level) => level.contestantIds.length === ids.length && [...level.contestantIds].sort((a, b) => a - b).every((id, index) => id === ids[index]));
+    if (!pending || placing.length !== req.body.placing.length) {
+      throw new HttpError(409, 'Those contingents are not tied and waiting for a vote any more. Reload the results.');
+    }
+    db.run(
+      `INSERT INTO tie_votes (category_id, contestant_ids, placing, note) VALUES (?, ?, ?, ?)
+       ON CONFLICT (category_id, contestant_ids) DO UPDATE SET placing = excluded.placing, note = excluded.note, created_at = datetime('now')`,
+      category.id, JSON.stringify(ids), JSON.stringify(placing), note,
+    );
+    notify('sheets', { categoryId: category.id });
+    res.status(201).json({ ok: true });
+  });
+
+  router.delete('/tie-votes/:id', (req, res) => {
+    const vote = find('tie_votes', v.id(req.params.id), 'Vote');
+    db.run('DELETE FROM tie_votes WHERE id = ?', vote.id);
+    notify('sheets', { categoryId: vote.category_id });
+    res.json({ ok: true });
+  });
+
   router.post('/scoresheets/reopen', (req, res) => {
     const judgeId = v.id(req.body.judgeId, 'Judge');
     const categoryId = v.id(req.body.categoryId, 'Category');
@@ -450,6 +641,7 @@ module.exports = function adminRoutes({ db, hub, serverInfo }) {
       db.run('DELETE FROM scores');
       db.run('DELETE FROM scoresheets');
       db.run('DELETE FROM deductions');
+      db.run('DELETE FROM tie_votes');
     });
     notify('config');
     res.json({ ok: true });

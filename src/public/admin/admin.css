@@ -9,13 +9,28 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  background: var(--brand-dark);
+  background: linear-gradient(180deg, var(--brand), var(--brand-dark));
   color: #fff;
 }
 
 .sidebar-brand {
-  padding: 20px 18px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* The anniversary logo is orange and blue, so it sits on white rather than on the blue sidebar. */
+.brand-logo {
+  display: block;
+  margin-bottom: 12px;
+  padding: 10px 26px;
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.brand-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .sidebar-brand strong {
@@ -59,10 +74,20 @@
   opacity: 0.85;
 }
 
-.nav-item:hover { background: rgba(255, 255, 255, 0.08); }
+.nav-item:hover { background: rgba(255, 255, 255, 0.12); }
+
+.nav-count {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sun);
+  color: #fff;
+  font-size: 0.78rem;
+}
 
 .nav-item.active {
   background: #fff;
+  box-shadow: inset 4px 0 0 var(--sun);
   color: var(--brand-dark);
   opacity: 1;
 }
@@ -72,13 +97,14 @@
   align-items: center;
   gap: 8px;
   padding: 14px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
   font-size: 0.85rem;
 }
 
 #main {
-  padding: 26px 30px 60px;
+  padding: 31px 30px 60px;
   overflow-y: auto;
+  background: var(--festive) top / 100% 5px no-repeat;
 }
 
 .page-head {
@@ -132,8 +158,39 @@
   gap: 10px;
   padding: 12px 18px;
   border-top: 1px solid var(--line);
-  background: #faf8fd;
+  background: var(--tint);
   border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.card-notes {
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.card-notes.ties {
+  background: var(--warn-soft);
+}
+
+.card-notes h3 {
+  font-size: 0.9rem;
+}
+
+.card-notes ul,
+.card-notes ol {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.card-notes li + li {
+  margin-top: 3px;
+}
+
+.vote-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 10px;
 }
 
 .empty {
@@ -150,7 +207,7 @@
   flex-wrap: wrap;
   gap: 14px 28px;
   padding: 18px 20px;
-  background: var(--brand);
+  background: linear-gradient(120deg, var(--brand), var(--sky));
   border-color: var(--brand);
   color: #fff;
 }
@@ -161,7 +218,7 @@
 
 .connect p {
   margin-top: 4px;
-  opacity: 0.85;
+  opacity: 0.92;
 }
 
 .connect-urls {
@@ -276,7 +333,7 @@ td.deducted {
 code.path {
   padding: 2px 6px;
   border-radius: 6px;
-  background: #ece9f1;
+  background: var(--chip);
   font: 0.85rem Consolas, "Courier New", monospace;
   word-break: break-all;
 }
@@ -288,6 +345,30 @@ code.secret {
   color: var(--brand-dark);
   font: 700 1rem Consolas, "Courier New", monospace;
   letter-spacing: 0.12em;
+}
+
+code.mac {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--chip);
+  font: 0.85rem Consolas, "Courier New", monospace;
+  white-space: nowrap;
+}
+
+.device-detail {
+  margin: 2px 0 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.signatories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px 24px;
+}
+
+.card-body p + p {
+  margin-top: 8px;
 }
 
 .description {

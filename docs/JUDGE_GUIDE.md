@@ -10,6 +10,12 @@ A one-page guide for judges. You score on your own tablet, laptop or phone, in i
 
 Keep your access code to yourself. Anyone who has it can enter scores as you.
 
+You can be signed in on **one device at a time**. Use the same device for the whole event.
+
+- *Judge 1 is already signed in on another device* — you, or someone else, is signed in as you elsewhere. Tell the tabulator.
+- *This device cannot open the judge scoresheet* — the tabulator has limited scoring to registered devices and this is not one of them. Show the screen to the tabulator.
+- *The tabulator disconnected this device* — sign in again if this is your scoresheet.
+
 ## Scoring
 
 Each category you are judging has its own tab at the top: **Dance Showdown**, **Best Music**, **Festival Queen**. The number on a tab, such as `3/9`, is how many contingents you have fully scored.
@@ -34,6 +40,10 @@ Open **Criteria guide** at the bottom of the sheet to read the full description 
 | A red box | That is not a valid score: it is over the maximum or not a number. Fix it. |
 | **All scores saved** (top right) | Everything you typed is safely with the tabulator. |
 | **Scores not saved — retrying** (top right, in red) | Your device has lost the connection. See below. |
+
+## If you are asked to score on paper
+
+The tabulator may hand you a printed scoresheet instead. Write the points for each criterion, up to the maximum printed under its name, and the total for each contingent. Leave deduction, final score and rank empty. Sign the sheet and write the date and time. The tabulating team enters your scores afterwards and gives you a printed copy to check and sign.
 
 ## If the connection drops
 

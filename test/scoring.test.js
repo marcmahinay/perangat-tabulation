@@ -351,6 +351,111 @@ test('a tie in the rank total goes to the higher average score', () => {
   });
   assert.deepEqual(result.rows.map((row) => row.rankSum), [3, 3]);
   assert.deepEqual(result.rows.map((row) => row.rank), [1, 2]);
+  assert.deepEqual(result.ties, [{ basis: 'rank_sum', value: 3, contestantIds: [1, 2] }]);
+});
+
+/** One criterion out of 100, so each sheet is just a list of scores in order of performance. */
+function tabulate(sheets, method = 'rank_sum', tieVotes = []) {
+  return computeCategoryResults({
+    category: category({ ranking_method: method }),
+    criteria: [{ id: 1, name: 'Overall', description: '', weight: 100 }],
+    contestants: contestants(sheets[0].map((_, index) => String.fromCharCode(65 + index))),
+    judges: judges(sheets.length),
+    scores: sheets.flatMap((sheet, judge) => sheet.map((score, index) => (
+      { judge_id: judge + 1, contestant_id: index + 1, criterion_id: 1, score }
+    ))),
+    deductions: [],
+    tieVotes,
+  });
+}
+
+test('contingents the tie-break cannot separate wait for the judges\' vote, which then places them', () => {
+  // A and B: same rank total (3) and same average (92.5).
+  const sheets = [[95, 90, 80], [90, 95, 80]];
+  const waiting = tabulate(sheets);
+  assert.deepEqual(waiting.rows.map((row) => row.rank), [1, 1, 3]);
+  assert.deepEqual(waiting.rows.map((row) => row.awaitingVote), [true, true, false]);
+  assert.deepEqual(waiting.pendingVotes, [{ rank: 1, contestantIds: [1, 2] }]);
+  assert.deepEqual(waiting.votes, []);
+
+  // The judges voted B above A, 3-2.
+  const voted = tabulate(sheets, 'rank_sum', [{ id: 7, contestantIds: [1, 2], placing: [2, 1], note: '3-2' }]);
+  assert.deepEqual(voted.rows.map((row) => row.rank), [2, 1, 3]);
+  assert.deepEqual(voted.rows.map((row) => row.placement), ['1ST RUNNER UP', 'CHAMPION', null]);
+  assert.deepEqual(voted.rows.map((row) => row.vote), [{ id: 7, note: '3-2' }, { id: 7, note: '3-2' }, null]);
+  assert.deepEqual(voted.votes, [{ id: 7, rank: 1, contestantIds: [2, 1], note: '3-2' }]);
+  assert.deepEqual(voted.pendingVotes, []);
+  assert.deepEqual(voted.ties, [{ basis: 'rank_sum', value: 3, contestantIds: [2, 1] }]);
+});
+
+test('a vote places only the contingents still level after the average, from the place they share', () => {
+  // Rank total 6 each; C has the best average, A and B are level and share 2nd until the vote.
+  const sheets = [[90, 85, 84], [80, 90, 89], [85, 80, 88]];
+  const voted = tabulate(sheets, 'rank_sum', [{ id: 1, contestantIds: [2, 1], placing: [2, 1], note: '' }]);
+  assert.deepEqual(voted.rows.map((row) => row.rank), [3, 2, 1]);
+  assert.deepEqual(voted.votes, [{ id: 1, rank: 2, contestantIds: [2, 1], note: '' }]);
+});
+
+test('a vote no longer applies once the tie it was taken for has changed', () => {
+  // All three are level now; the vote was taken when only A and B were.
+  const sheets = [[90, 90, 90], [80, 80, 80]];
+  const result = tabulate(sheets, 'rank_sum', [{ id: 3, contestantIds: [1, 2], placing: [1, 2], note: '' }]);
+  assert.deepEqual(result.rows.map((row) => row.rank), [1, 1, 1]);
+  assert.deepEqual(result.votes, []);
+  assert.deepEqual(result.pendingVotes, [{ rank: 1, contestantIds: [1, 2, 3] }]);
+});
+
+test('with the average method, equal averages also go to the judges\' vote', () => {
+  const sheets = [[95, 90, 80], [85, 90, 70]];
+  const voted = tabulate(sheets, 'average', [{ id: 2, contestantIds: [1, 2], placing: [1, 2], note: '' }]);
+  assert.deepEqual(voted.rows.map((row) => row.rank), [1, 2, 3]);
+  assert.deepEqual(voted.rows.map((row) => row.placement), ['CHAMPION', '1ST RUNNER UP', null]);
+});
+
+test('a category with no ties reports none', () => {
+  assert.deepEqual(tabulate([[95, 90, 85], [94, 91, 80]]).ties, []);
+  assert.deepEqual(tabulate([[95, 90, 85], [94, 91, 80]], 'average').ties, []);
+});
+
+test('contingents level on rank total and average share the placing and are reported as a tie', () => {
+  // A and B swap first and second between the judges with the same two scores; C is last on both.
+  const result = tabulate([[95, 90, 80], [90, 95, 80]]);
+  assert.deepEqual(result.rows.map((row) => row.rankSum), [3, 3, 6]);
+  assert.deepEqual(result.rows.map((row) => row.rank), [1, 1, 3]);
+  assert.deepEqual(result.rows.map((row) => row.placement), ['CHAMPION', 'CHAMPION', null]);
+  assert.deepEqual(result.ties, [{ basis: 'rank_sum', value: 3, contestantIds: [1, 2] }]);
+});
+
+test('a three-way tie lists the contingents in placing order, even when the tie-break separates only one', () => {
+  // Every contingent is ranked 1, 2 and 3 once: rank total 6 each. C has the best average; A and B are level.
+  const result = tabulate([[90, 85, 84], [80, 90, 89], [85, 80, 88]]);
+  assert.deepEqual(result.rows.map((row) => row.rankSum), [6, 6, 6]);
+  assert.deepEqual(result.rows.map((row) => row.average), [85, 85, 87]);
+  assert.deepEqual(result.rows.map((row) => row.rank), [2, 2, 1]);
+  assert.deepEqual(result.ties, [{ basis: 'rank_sum', value: 6, contestantIds: [3, 1, 2] }]);
+});
+
+test('separate ties are reported separately, best placing first', () => {
+  const result = tabulate([[95, 90, 70, 60], [90, 96, 60, 71]]);
+  assert.deepEqual(result.rows.map((row) => row.rankSum), [3, 3, 7, 7]);
+  assert.deepEqual(result.rows.map((row) => row.rank), [2, 1, 4, 3]);
+  assert.deepEqual(result.ties, [
+    { basis: 'rank_sum', value: 3, contestantIds: [2, 1] },
+    { basis: 'rank_sum', value: 7, contestantIds: [4, 3] },
+  ]);
+});
+
+test('with the average method, equal averages are a tie and share the placing', () => {
+  const result = tabulate([[95, 90, 80], [85, 90, 70]], 'average');
+  assert.deepEqual(result.rows.map((row) => row.average), [90, 90, 75]);
+  assert.deepEqual(result.rows.map((row) => row.rank), [1, 1, 3]);
+  assert.deepEqual(result.ties, [{ basis: 'average', value: 90, contestantIds: [1, 2] }]);
+});
+
+test('contingents not yet scored by every judge are left out of the ties', () => {
+  const result = tabulate([[90, 90, 90], [90, 90]]);
+  assert.deepEqual(result.rows.map((row) => row.rankSum), [3.5, 3.5, null]);
+  assert.deepEqual(result.ties, [{ basis: 'rank_sum', value: 3.5, contestantIds: [1, 2] }]);
 });
 
 test('the safety penalty costs the same however many judges sit on the panel', () => {

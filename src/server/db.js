@@ -29,6 +29,23 @@ const MIGRATIONS = [
       db.raw.exec('ALTER TABLE deduction_types DROP COLUMN scope');
     }
   },
+  // One device per judge. A session now records the device it was opened on,
+  // a judge can be tied to one registered device, and a judge has at most one
+  // session, so the extra sessions an older version allowed are removed.
+  (db) => {
+    const hasColumn = (table, name) =>
+      db.raw.prepare(`PRAGMA table_info(${table})`).all().some((column) => column.name === name);
+    if (!hasColumn('judges', 'device_mac')) db.raw.exec('ALTER TABLE judges ADD COLUMN device_mac TEXT');
+    if (!hasColumn('judge_sessions', 'ip')) db.raw.exec('ALTER TABLE judge_sessions ADD COLUMN ip TEXT');
+    if (!hasColumn('judge_sessions', 'mac')) db.raw.exec('ALTER TABLE judge_sessions ADD COLUMN mac TEXT');
+    db.raw.exec('DELETE FROM judge_sessions WHERE rowid NOT IN (SELECT MAX(rowid) FROM judge_sessions GROUP BY judge_id)');
+    db.raw.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_judge_sessions_judge ON judge_sessions(judge_id)');
+  },
+  // Scores can be encoded from paper by the tabulating team; record who typed each one.
+  (db) => {
+    const columns = db.raw.prepare('PRAGMA table_info(scores)').all();
+    if (!columns.some((column) => column.name === 'entered_by')) db.raw.exec('ALTER TABLE scores ADD COLUMN entered_by TEXT');
+  },
 ];
 
 /** Thin synchronous wrapper around node:sqlite with cached statements. */

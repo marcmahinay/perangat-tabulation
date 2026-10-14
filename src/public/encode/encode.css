@@ -1,0 +1,291 @@
+/* Encoder screen. Phone first: the tabulating team photographs paper sheets with it. */
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.center { text-align: center; }
+.strong { font-weight: 700; }
+
+/* Pairing */
+
+.center-screen {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.pair-card {
+  width: min(420px, 100%);
+  padding: 28px;
+  border-top: none;
+  background: var(--festive) top / 100% 6px no-repeat, var(--surface);
+}
+
+.pair-card h1 {
+  color: var(--brand);
+  text-align: center;
+}
+
+.pair-card .subtitle {
+  margin: 4px 0 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.pair-card .btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+}
+
+.pair-card input {
+  padding: 11px 12px;
+  font-size: 1.05rem;
+}
+
+.pair-logo {
+  display: block;
+  width: 150px;
+  max-width: 50%;
+  height: auto;
+  margin: 0 auto 14px;
+}
+
+.pairing-code {
+  margin: 4px 0 14px;
+  color: var(--brand-dark);
+  font: 800 3rem/1 Consolas, "Courier New", monospace;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+/* Top bar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 16px 14px;
+  background: var(--festive) bottom / 100% 4px no-repeat, linear-gradient(90deg, var(--brand-dark), var(--brand));
+  color: #fff;
+}
+
+.topbar .mark {
+  height: 36px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.topbar .event { font-weight: 700; }
+.topbar .who { opacity: 0.9; }
+.topbar .spacer { flex: 1; }
+
+.topbar .btn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+/* Choosing the sheet */
+
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 12px;
+  padding: 14px 16px 0;
+}
+
+.pickers .field {
+  flex: 1 1 220px;
+}
+
+.empty {
+  padding: 40px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* The sheet */
+
+.sheet {
+  margin: 4px 16px 20px;
+  overflow: hidden;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head p { margin-top: 3px; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--tint);
+}
+
+.scan-button {
+  border-color: var(--sun);
+  color: #b45200;
+}
+
+.grid-status {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.scan:empty { display: none; }
+
+.scan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--brand-soft);
+}
+
+.scan .photo img {
+  display: block;
+  width: 140px;
+  max-height: 200px;
+  object-fit: contain;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.scan-text {
+  flex: 1 1 260px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.flag-note {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.warnings {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--warn);
+}
+
+table.scores {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+table.scores th,
+table.scores td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+table.scores thead th {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 0.8rem;
+  line-height: 1.25;
+  vertical-align: bottom;
+  text-align: center;
+}
+
+table.scores thead th small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+table.scores th.name,
+table.scores td.name {
+  text-align: left;
+  font-weight: 700;
+}
+
+table.scores td.no {
+  width: 40px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+table.scores td.cell { text-align: center; }
+
+table.scores td.computed {
+  width: 76px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-input {
+  width: 76px;
+  padding: 9px 4px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Read from the photo and not yet changed by hand. */
+.score-input.proposed {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.score-input.unsaved {
+  border-color: #d9a400;
+  background: #fffbea;
+}
+
+.score-input.proposed.unsaved {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+/* The photo reader was unsure, or what it read cannot be right. */
+.score-input.flagged {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-soft);
+}
+
+.score-input.invalid {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.score-input:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .sheet { margin: 4px 8px 12px; }
+  .pickers { padding: 10px 8px 0; }
+}

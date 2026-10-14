@@ -6,7 +6,7 @@
 }
 
 body {
-  background: #d9d5e2;
+  background: #d3dce8;
 }
 
 .toolbar {
@@ -36,26 +36,56 @@ body {
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
 }
 
+/* Government marks on the left, the sheet's heading in the middle, the event's marks on the right. */
 .sheet-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.2mm solid #0063d7;
+  border-image: linear-gradient(90deg, #ff7a00, #ffc400 36%, #00a8ef 64%, #0063d7) 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.sheet-header .logos {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 8px;
-  border-bottom: 3px solid #432c69;
+  align-items: center;
+  gap: 3mm;
+}
+
+.sheet-header .logos.event {
+  justify-content: flex-end;
+}
+
+.sheet-header .logos img {
+  height: 18mm;
+  width: auto;
+}
+
+/* These two have more empty space around the artwork, so they are drawn a little larger to look the same size. */
+.sheet-header .logos.event img {
+  height: 22mm;
+}
+
+.sheet-header .heading {
+  text-align: center;
+  line-height: 1.2;
 }
 
 .sheet-header h1 {
-  font-size: 22pt;
+  font-size: 19pt;
   line-height: 1.1;
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
 
 .sheet-header h2 {
+  margin-top: 1mm;
   font-size: 14pt;
   text-transform: uppercase;
-  text-align: right;
+  color: #00479f;
 }
 
 .sheet-header .meta {
@@ -65,15 +95,14 @@ body {
 
 .sheet-header .kind {
   font-size: 10pt;
-  text-align: right;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #333;
 }
 
 .stamp {
-  margin-top: 8px;
-  padding: 4px 10px;
+  margin-top: 5px;
+  padding: 2px 10px;
   border: 2px solid #b42318;
   color: #b42318;
   font-size: 10pt;
@@ -86,21 +115,21 @@ body {
 
 table.sheet {
   width: 100%;
-  margin-top: 10px;
+  margin-top: 6px;
   border-collapse: collapse;
   font-size: 11pt;
 }
 
 table.sheet th,
 table.sheet td {
-  padding: 6px 7px;
+  padding: 3px 7px;
   border: 1px solid #222;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 table.sheet thead th {
-  background: #e7dff3;
+  background: #dcebfb;
   font-size: 8.5pt;
   line-height: 1.2;
   text-transform: uppercase;
@@ -137,15 +166,45 @@ table.sheet td.remarks {
   text-transform: uppercase;
 }
 
+/* Blank sheets are written on by hand, so the rows are tall. */
+table.sheet.blank td {
+  height: 9mm;
+}
+
 table.sheet tr.winner td {
   background: #fdf3d0;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
+.notes {
+  margin-top: 5px;
+  font-size: 8pt;
+  line-height: 1.3;
+  break-inside: avoid;
+}
+
+.notes.ties {
+  padding: 3px 8px;
+  border: 1px solid #222;
+}
+
+.notes h3 {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notes ul,
+.notes ol {
+  margin: 2px 0 0;
+  padding-left: 16px;
+}
+
 .footnote {
-  margin-top: 6px;
-  font-size: 8.5pt;
+  margin-top: 5px;
+  font-size: 8pt;
+  line-height: 1.3;
   color: #333;
 }
 
@@ -154,7 +213,7 @@ table.sheet tr.winner td {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 14mm 12mm;
-  margin-top: 16mm;
+  margin-top: 10mm;
   break-inside: avoid;
 }
 
@@ -174,6 +233,36 @@ table.sheet tr.winner td {
 .signature .role {
   margin-top: 1mm;
   font-size: 9.5pt;
+}
+
+.signature .detail {
+  font-size: 8pt;
+  color: #333;
+}
+
+/* Overall results: the tabulator on the left, the board of judges on the right with the chairman last. */
+.signatures.arranged {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6mm 10mm;
+  margin-top: 3mm;
+}
+
+.sign-group .caption {
+  /* The space under the caption is where the signature goes. */
+  margin-bottom: 7mm;
+  font-size: 8.5pt;
+  font-style: italic;
+}
+
+.sign-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8mm;
+}
+
+.signatures.arranged .signature {
+  min-width: 44mm;
 }
 
 /* Access slips */

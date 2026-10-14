@@ -15,6 +15,7 @@
     "dist": "electron-builder --win"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "express": "^5.1.0",
     "ws": "^8.18.0"
   },

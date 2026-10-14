@@ -1,13 +1,23 @@
-/* Shared look for the judge and admin screens. */
+/* Shared look for the judge and admin screens.
+   The colours come from the 97th Provincial Anniversary logo: the orange-to-gold
+   "9" and the sky-to-deep-blue "7". */
 
 :root {
-  --brand: #5a3d8a;
-  --brand-dark: #432c69;
-  --brand-soft: #efe9f8;
-  --ink: #1f1a2b;
-  --muted: #6b6478;
-  --line: #ddd6e8;
-  --bg: #f6f4fa;
+  --brand: #0063d7;
+  --brand-dark: #00479f;
+  --brand-soft: #e4f0fd;
+  --sky: #00a8ef;
+  --sun: #ff7a00;
+  --sun-light: #ffc400;
+  /* The logo's wordmark, left to right. Used as a thin strip that marks the top of a screen. */
+  --festive: linear-gradient(90deg, #ff7a00, #ffc400 36%, #00a8ef 64%, #0063d7);
+  --ink: #14233b;
+  --muted: #5b6b80;
+  --line: #d6e0ec;
+  --line-strong: #b9c8da;
+  --bg: #f2f6fb;
+  --tint: #f5f9fd;
+  --chip: #e7eef6;
   --surface: #ffffff;
   --ok: #18794e;
   --ok-soft: #e1f4e9;
@@ -18,7 +28,7 @@
   --gold: #a16207;
   --gold-soft: #fdf3d0;
   --radius: 10px;
-  --shadow: 0 1px 2px rgba(31, 26, 43, 0.06), 0 4px 14px rgba(31, 26, 43, 0.06);
+  --shadow: 0 1px 2px rgba(20, 35, 59, 0.06), 0 4px 14px rgba(20, 35, 59, 0.07);
 }
 
 *,
@@ -83,7 +93,7 @@ h3 { font-size: 1rem; }
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(90, 61, 138, 0.35);
+  outline: 3px solid rgba(0, 99, 215, 0.35);
   outline-offset: 1px;
 }
 
@@ -136,7 +146,7 @@ textarea:focus-visible {
   display: inline-block;
   padding: 2px 9px;
   border-radius: 999px;
-  background: #ece9f1;
+  background: var(--chip);
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -155,7 +165,7 @@ textarea:focus-visible {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #c3bdcf;
+  background: var(--line-strong);
   flex: none;
 }
 
@@ -182,7 +192,7 @@ table.data td {
 }
 
 table.data th {
-  background: #faf8fd;
+  background: var(--tint);
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -206,7 +216,7 @@ select,
 textarea {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #c9c1d8;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
@@ -272,12 +282,12 @@ dialog.modal {
   padding: 0;
   border: none;
   border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(31, 26, 43, 0.35);
+  box-shadow: 0 20px 60px rgba(20, 35, 59, 0.35);
   color: var(--ink);
 }
 
 dialog.modal::backdrop {
-  background: rgba(31, 26, 43, 0.5);
+  background: rgba(20, 35, 59, 0.5);
 }
 
 .modal-head {

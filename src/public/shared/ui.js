@@ -74,7 +74,7 @@ function buildControl(field, value) {
     }
     default: {
       const element = h('input', {
-        type: 'text',
+        type: field.type === 'password' ? 'password' : 'text',
         inputMode: field.type === 'number' ? 'decimal' : undefined,
         required: field.required,
         placeholder: field.placeholder,
@@ -87,14 +87,15 @@ function buildControl(field, value) {
 }
 
 /**
- * Modal form. `fields` is a list of { name, label, type, hint, required, ... }.
+ * Modal form. `fields` is a list of { name, label, type, hint, required, ... }; false entries are skipped.
  * `onSubmit(values)` may throw; the message is shown and the dialog stays open.
  * Resolves true once saved, false if cancelled.
  */
 export function formDialog({ title, intro, fields, values = {}, submitLabel = 'Save', onSubmit }) {
   return new Promise((resolve) => {
     let saved = false;
-    const controls = fields.map((field) => ({ field, ...buildControl(field, values[field.name]) }));
+    // A field given as false is left out, so a dialog can show some fields only when editing.
+    const controls = fields.filter(Boolean).map((field) => ({ field, ...buildControl(field, values[field.name]) }));
     const error = h('p', { class: 'form-error', hidden: true });
     const submit = h('button', { class: 'btn primary', type: 'submit' }, submitLabel);
 

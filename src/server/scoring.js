@@ -57,6 +57,30 @@ function computeDeductionCharge(type, { measuredSeconds = null, quantity = null 
 }
 
 /**
+ * Finds the contingents that are level on the figure a category is decided by
+ * (`key` is 'rankSum' or 'average'), so the results can say how each tie was
+ * settled. Each tie lists its contingents in placing order; the ones that the
+ * tie-break could not separate have the same `rank`.
+ */
+function findTies(rows, key) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (!groups.has(row[key])) groups.set(row[key], []);
+    groups.get(row[key]).push(row);
+  }
+  return [...groups.entries()]
+    .filter(([, tied]) => tied.length > 1)
+    .map(([value, tied]) => ({
+      basis: key === 'rankSum' ? 'rank_sum' : 'average',
+      value,
+      contestantIds: [...tied]
+        .sort((a, b) => a.rank - b.rank || a.contestant.contestant_no - b.contestant.contestant_no)
+        .map((row) => row.contestant.id),
+    }))
+    .sort((a, b) => (key === 'rankSum' ? a.value - b.value : b.value - a.value));
+}
+
+/**
  * Tabulates one category.
  *
  *   raw score    = sum of a judge's criterion scores for a contingent
@@ -72,10 +96,16 @@ function computeDeductionCharge(type, { measuredSeconds = null, quantity = null 
  * sum of judge ranks wins; the average score only breaks ties.
  * ranking_method 'average': the highest average score wins.
  *
+ * `ties` reports every group of contingents level on the rank total (or, with
+ * 'average', on the average score), whether or not the tie-break separated them.
+ * Contingents the tie-break cannot separate are placed by the judges' vote:
+ * `tieVotes` are the recorded votes ({ id, contestantIds, placing, note }),
+ * `votes` the ones that apply, and `pendingVotes` the levels still waiting for one.
+ *
  * `judges` carry their scoresheet `status`; the category is final once every
  * assigned judge has submitted.
  */
-function computeCategoryResults({ category, criteria, contestants, judges, scores, deductions }) {
+function computeCategoryResults({ category, criteria, contestants, judges, scores, deductions, tieVotes = [] }) {
   const scoreByCell = new Map();
   for (const score of scores) {
     scoreByCell.set(`${score.judge_id}:${score.contestant_id}:${score.criterion_id}`, score.score);
@@ -145,6 +175,8 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
     row.rankSum = row.complete ? sum(finished.map((entry) => entry.rank)) : null;
     row.rank = null;
     row.placement = null;
+    row.vote = null;
+    row.awaitingVote = false;
   }
 
   const compare = byRankSum
@@ -152,12 +184,40 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
     : (a, b) => b.average - a.average;
   const rankable = rows.filter((row) => (byRankSum ? row.rankSum != null : row.average != null));
   const titles = category.placement_titles || [];
-  // Final placings are whole numbers so that each maps to an award title; contingents
-  // still level after the tie-break share the placing.
+  // Final placings are whole numbers so that each maps to an award title.
+  const levels = new Map();
   for (const [row, rank] of rankEntries(rankable, compare)) {
     row.rank = rank;
-    row.placement = titles[rank - 1] || null;
+    row.vote = null;
+    row.awaitingVote = false;
+    if (!levels.has(rank)) levels.set(rank, []);
+    levels.get(rank).push(row);
   }
+
+  // Contingents still level after the tie-break are placed by the judges' vote. A
+  // recorded vote counts only for exactly the contingents it was taken for: if the
+  // scores change and the tie is no longer the same, it no longer applies.
+  const voteFor = new Map(tieVotes.map((vote) => [[...vote.contestantIds].sort((a, b) => a - b).join(','), vote]));
+  const votes = [];
+  const pendingVotes = [];
+  for (const [rank, level] of levels) {
+    if (level.length < 2) continue;
+    const ids = level.map((row) => row.contestant.id).sort((a, b) => a - b);
+    const vote = voteFor.get(ids.join(','));
+    if (vote) {
+      const byId = new Map(level.map((row) => [row.contestant.id, row]));
+      vote.placing.forEach((id, index) => {
+        const row = byId.get(id);
+        row.rank = rank + index;
+        row.vote = { id: vote.id, note: vote.note || '' };
+      });
+      votes.push({ id: vote.id, rank, contestantIds: [...vote.placing], note: vote.note || '' });
+    } else {
+      for (const row of level) row.awaitingVote = true;
+      pendingVotes.push({ rank, contestantIds: level.map((row) => row.contestant.id) });
+    }
+  }
+  for (const row of rankable) row.placement = titles[row.rank - 1] || null;
 
   return {
     category: {
@@ -179,6 +239,9 @@ function computeCategoryResults({ category, criteria, contestants, judges, score
       total: rows.length,
     })),
     rows,
+    ties: findTies(rankable, byRankSum ? 'rankSum' : 'average'),
+    votes,
+    pendingVotes,
     isFinal: judges.length > 0 && rows.length > 0 && judges.every((judge) => judge.status === 'submitted'),
   };
 }

@@ -58,6 +58,7 @@ A dedicated router that you control is strongly recommended over the venue's sha
    - set a static IP in Windows that is outside the router's DHCP range.
 4. **Turn off client isolation** on the router (also called *AP isolation* or *guest mode*). With it on, judge devices cannot reach the tabulation computer.
 5. **Stop the computer from sleeping**: *Settings → System → Power* → set sleep to *Never* while plugged in. Keep it on mains power.
+6. **If you will use the device lock, keep every judge device on the same network segment as the tabulation computer.** The lock identifies a device by its MAC address, which the tabulation computer reads from its own neighbour (ARP) table. That table only holds devices it reaches directly: one router or switch, no second router, and no Wi-Fi extender that hands out its own addresses. On each judge device, set the *private Wi-Fi address* for the event network to *Fixed* (or off), so its MAC address does not change during the event.
 
 ## 4. Open the firewall
 
@@ -75,7 +76,7 @@ Do not skip this. Each step checks one link in the chain.
 
 | Step | Do this | You should see |
 | --- | --- | --- |
-| 1 | Start the app on the tabulation computer. | The admin console, with an address such as `http://192.168.1.10:3000` in the purple box on **Live monitor**. |
+| 1 | Start the app on the tabulation computer. | The admin console, with an address such as `http://192.168.1.10:3000` in the blue box on **Live monitor**. |
 | 2 | On the tabulation computer, open that address in a browser. | The judge sign-in page. This proves the server is listening on the network address. |
 | 3 | On a judge device connected to the event network, open the same address. | The judge sign-in page. This proves the firewall and router allow it. |
 | 4 | Sign in on that device with a judge's access code. | The scoresheet, and that judge's dot turning green on **Live monitor**. |
@@ -113,12 +114,14 @@ Everything entered after that backup was made is gone. Judges who signed in befo
 
 ## Configuration
 
-Two optional settings are read from environment variables when the app starts.
+Three optional settings are read from environment variables when the app starts.
 
 | Variable | Default | Use it to |
 | --- | --- | --- |
 | `PORT` | `3000` | Use another port. If the port is taken, the app tries the next nine and shows the one it got on **Live monitor**. |
 | `PERANGAT_DB` | the path above | Keep the database somewhere else, such as a second drive. |
+
+| `ANTHROPIC_API_KEY` | none | Supply the Claude API key used to read photos of paper scoresheets, instead of entering it under **Encoding**. A key entered in the app takes precedence. |
 
 To set one for the installed app: *Start → "Edit environment variables for your account" → New*, then restart the app. If you change the port, change the firewall rule to match.
 
@@ -139,5 +142,7 @@ A newer version upgrades an older database by itself the first time it starts. D
 - **The installer is unsigned.** Windows warns about it and some antivirus products may too. Signing needs a code-signing certificate.
 - **Traffic is plain HTTP.** Anyone on the same network could read it. Use a network with a password that only the event team and judges know, and never forward the port to the internet.
 - **The admin console has no password.** It is protected by only being reachable on the tabulation computer itself, so lock that computer's screen when you step away.
+- **Reading photos of paper sheets needs the internet** on the tabulation computer, and sends each photo to Anthropic (Claude) to be read, billed to the API key's account. Everything else, including typing scores in on the encoder screen, works offline. If the event network has no internet, connect the tabulation computer to a second network (a phone hotspot, say) only while photos are being read, or have encoders type the scores.
+- **The device lock is a barrier, not a guarantee.** A MAC address is not secret and can be copied by someone with the skill to do it. Use the lock together with a Wi-Fi password and the access codes.
 - **One tabulation computer at a time.** Two copies on the same network would each have their own separate scores.
 - **Only Windows has been tested.**

@@ -259,3 +259,85 @@ test('the judge page is served at the root and unknown API routes return JSON', 
   assert.equal(missing.status, 404);
   assert.equal(missing.body.error, 'Not found.');
 });
+
+test('a new judge is numbered automatically with the lowest free number', async () => {
+  const before = (await ok('GET', '/api/admin/state')).judges.map((judge) => judge.judge_no);
+  const added = [];
+  for (const name of ['Extra A', 'Extra B']) added.push((await ok('POST', '/api/admin/judges', { name })).id);
+  const numberOf = async (id) => (await ok('GET', '/api/admin/state')).judges.find((judge) => judge.id === id).judge_no;
+  assert.equal(await numberOf(added[0]), Math.max(...before) + 1);
+  assert.equal(await numberOf(added[1]), Math.max(...before) + 2);
+
+  // Deleting a judge frees their number for the next one added.
+  await ok('DELETE', `/api/admin/judges/${added[0]}`);
+  const refill = (await ok('POST', '/api/admin/judges', { name: 'Extra C' })).id;
+  assert.equal(await numberOf(refill), Math.max(...before) + 1);
+
+  for (const id of [added[1], refill]) await ok('DELETE', `/api/admin/judges/${id}`);
+});
+
+test('the chairman and the tabulator are set together, and a deleted chairman is cleared', async () => {
+  const { judges } = await ok('GET', '/api/admin/state');
+  await ok('PUT', '/api/admin/signatories', { chairmanJudgeId: String(judges[1].id), tabulatorName: '  Marc Mahinay ' });
+  let state = await ok('GET', '/api/admin/state');
+  assert.equal(state.chairmanJudgeId, judges[1].id);
+  assert.deepEqual(state.judges.map((judge) => judge.is_chairman), judges.map((_, index) => index === 1));
+  assert.equal(state.settings.tabulator_name, 'Marc Mahinay');
+
+  assert.equal((await call('PUT', '/api/admin/signatories', { chairmanJudgeId: 99999, tabulatorName: '' })).status, 404);
+
+  // A chairman who is deleted leaves the board without one.
+  const temporary = (await ok('POST', '/api/admin/judges', { name: 'Temporary' })).id;
+  await ok('PUT', '/api/admin/signatories', { chairmanJudgeId: temporary, tabulatorName: 'Marc Mahinay' });
+  await ok('DELETE', `/api/admin/judges/${temporary}`);
+  state = await ok('GET', '/api/admin/state');
+  assert.equal(state.chairmanJudgeId, null);
+  assert.equal(state.judges.some((judge) => judge.is_chairman), false);
+
+  // No chairman at all.
+  await ok('PUT', '/api/admin/signatories', { chairmanJudgeId: '', tabulatorName: '' });
+  state = await ok('GET', '/api/admin/state');
+  assert.equal(state.chairmanJudgeId, null);
+  assert.equal(state.settings.tabulator_name, '');
+});
+
+test('the judges\' vote on a tie is recorded only for a tie that is waiting for one', async () => {
+  // Every judge gives two new contingents in Festival Queen the same scores: a tie on rank total and average.
+  const state = await ok('GET', '/api/admin/state');
+  const queen = state.categories[2];
+  const added = [];
+  for (const name of ['Tie A', 'Tie B']) added.push((await ok('POST', '/api/admin/contestants', { name, categoryIds: [queen.id] })).id);
+  const tokens = [];
+  for (const judge of state.judges.filter((entry) => entry.categoryIds.includes(queen.id))) {
+    tokens.push((await ok('POST', '/api/judge/login', { judgeId: judge.id, accessCode: judge.access_code })).token);
+  }
+  for (const token of tokens) {
+    for (const contestantId of added) {
+      for (const criterion of queen.criteria) {
+        await ok('PUT', '/api/judge/scores', { contestantId, criterionId: criterion.id, score: criterion.weight - 5 }, token);
+      }
+    }
+  }
+
+  const queenResult = async () => (await ok('GET', '/api/admin/results')).categories.find((entry) => entry.category.id === queen.id);
+  let result = await queenResult();
+  assert.deepEqual(result.pendingVotes.map((level) => [...level.contestantIds].sort()), [[...added].sort()]);
+
+  // A vote naming contingents that are not tied, or naming one twice, is refused.
+  assert.equal((await call('POST', '/api/admin/tie-votes', { categoryId: queen.id, placing: [added[0], state.contestants[0].id] })).status, 409);
+  assert.equal((await call('POST', '/api/admin/tie-votes', { categoryId: queen.id, placing: [added[0], added[0]] })).status, 409);
+
+  await ok('POST', '/api/admin/tie-votes', { categoryId: queen.id, placing: [added[1], added[0]], note: '2-1' });
+  result = await queenResult();
+  assert.deepEqual(result.pendingVotes, []);
+  const rankOf = (id) => result.rows.find((row) => row.contestant.id === id).rank;
+  assert.equal(rankOf(added[1]) + 1, rankOf(added[0]));
+  assert.equal(result.votes[0].note, '2-1');
+
+  // Clearing the vote puts them back to sharing the place.
+  await ok('DELETE', `/api/admin/tie-votes/${result.votes[0].id}`);
+  result = await queenResult();
+  assert.equal(result.pendingVotes.length, 1);
+
+  for (const id of added) await ok('DELETE', `/api/admin/contestants/${id}`);
+});

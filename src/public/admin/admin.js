@@ -691,6 +691,7 @@ function sessionCell(judge) {
       h('span', { class: `dot ${online ? 'on' : ''}` }),
       online ? ' Connected' : ' Signed in, not connected',
       !onRegisteredDevice(judge) && [' ', h('span', { class: 'badge warn' }, 'Not the registered device')],
+      judge.phone_linked && [' ', h('span', { class: 'badge brand', title: 'A phone is linked to send photos of this judge\'s paper sheet. It cannot change scores.' }, 'Phone linked')],
     ),
     h('div', { class: 'device-detail' }, `${deviceLabel(session)} · since ${localTime(session.since)}`),
     button('Disconnect', async () => {
@@ -711,7 +712,12 @@ function sessionCell(judge) {
 function registeredCell(judge) {
   const { session } = judge;
   let registered = h('span', { class: 'muted' }, 'Any device');
-  if (judge.device_mac) registered = h('code', { class: 'mac' }, judge.device_mac);
+  if (judge.device_mac) {
+    registered = [
+      h('code', { class: 'mac' }, judge.device_mac),
+      store.state.server.macs.includes(judge.device_mac) && [' ', h('span', { class: 'badge warn', title: 'The tabulation computer itself is registered to this judge.' }, 'This computer')],
+    ];
+  }
   else if (store.state.deviceLock) registered = h('span', { class: 'badge danger' }, 'None — cannot sign in');
   return h('td', null,
     h('div', { class: 'nowrap' }, registered),

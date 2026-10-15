@@ -110,6 +110,14 @@ Reading a photo uses Claude, Anthropic's AI model, so it needs:
 
 Each photo is sent to Anthropic to be read and is charged to the API key's account. Without a key or without internet, the encoder sees a message and types the scores in instead; everything else keeps working.
 
+### Judges photographing their own sheets
+
+A judge who scores on paper can also photograph their own sheet with their phone, with no encoder involved. On their signed-in scoresheet they press **Scan with phone** and scan the QR code with the phone's camera; that links the phone to their account. The phone then only sends photos: the scores appear on the judge's own signed-in device, where they check them, fill them in and correct anything marked red, and submit as usual. See the Judge's Guide.
+
+- The phone does not need to be registered for the device lock, and it never signs in as the judge. The link is made from the judge's registered, signed-in device, works once and for ten minutes, and ends when the judge signs out or is disconnected.
+- On **Judges**, a judge with a linked phone shows **Phone linked**.
+- It uses the same Claude API key and internet connection as the encoder screen.
+
 ## Judge devices
 
 ### One device per judge
@@ -131,7 +139,7 @@ The device lock ties each judge to one device by its **MAC address**, the hardwa
 - every other device on the network is shown *This device cannot open the judge scoresheet*, with its own MAC address;
 - a judge with no registered device cannot sign in.
 
-The lock applies to the tabulation computer too: with it on, a browser there cannot open the judge scoresheet or sign in as a judge, even with the right code. The admin console keeps working. To enter a judge's paper sheet, use the encoder screen (see *Encoding paper sheets*).
+The lock applies to the tabulation computer too. Its browser can open the judge scoresheet only if this computer's own MAC address is registered to a judge, and then only as that judge; otherwise it is turned away, and the message shows this computer's MAC address. On **Judges**, a registered MAC that belongs to this computer is marked *This computer*. The admin console always works. To enter a judge's paper sheet, use the encoder screen (see *Encoding paper sheets*) rather than registering this computer to a judge.
 
 To register the judges' devices, with every judge device on the event network:
 

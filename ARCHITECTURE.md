@@ -63,11 +63,13 @@ perangat-tabulation/
 │  │  ├─ realtime.js        WebSocket hub (auth, broadcast, presence, heartbeat)
 │  │  ├─ devices.js         Which device a request comes from (MAC lookup), one device per judge, the device lock
 │  │  ├─ scan.js            Reads a photo of a paper scoresheet with Claude, and checks the reading
+│  │  ├─ phones.js          A judge's linked phone: link codes, phone tokens, readings waiting for the judge
 │  │  ├─ validate.js        Request-body validation helpers
 │  │  ├─ errors.js          HttpError
 │  │  └─ routes/
 │  │     ├─ public.js       /api/public  — sign-in screen data
 │  │     ├─ judge.js        /api/judge   — login, own scoresheets, save score, submit
+│  │     ├─ snap.js         /api/snap    — a judge's linked phone: link, list categories, send a photo
 │  │     ├─ encode.js       /api/encode  — encoder pairing, enter and edit the assigned judges' sheets, scan a photo
 │  │     └─ admin.js        /api/admin   — setup CRUD, results, deductions, maintenance
 │  └─ public/
@@ -75,13 +77,15 @@ perangat-tabulation/
 │     │  └─ logos/          The five official logos, trimmed and resized for screen and print
 │     ├─ judge/             index.html, judge.js, judge.css
 │     ├─ encode/            index.html, encode.js, encode.css: the tabulating team's encoder screen
+│     ├─ snap/              index.html, snap.js, snap.css: a judge's phone, photographing their paper sheet
 │     └─ admin/             index.html, admin.js, admin.css, print.html, print.js, print.css
 └─ test/
    ├─ scoring.test.js       Rules: ranking, deductions, averaging
    ├─ api.test.js           End-to-end over HTTP and WebSocket, in-memory database
    ├─ security.test.js      Attacks that must keep failing: forged hosts, foreign origins, bad input
    ├─ devices.test.js       One device per judge, the device lock, reading MAC addresses
-   └─ encode.test.js        Encoder pairing, entering and editing sheets, checking a photo reading
+   ├─ encode.test.js        Encoder pairing, entering and editing sheets, checking a photo reading
+   └─ phone.test.js         A judge's phone: linking, photos waiting for the judge, the link ending with the session
 ```
 
 ## Data model
@@ -106,6 +110,7 @@ categories ──< criteria                        deduction_types
 | `category_judges`, `category_contestants` | Who scores / competes in which category | New judges and contingents are enrolled in every category by default |
 | `scores` | One cell of a scoresheet | Unique on `(judge_id, contestant_id, criterion_id)`; saved with an upsert. `entered_by` is the encoder who typed it, or null when the judge did |
 | `tie_votes` | The judges' vote on a tie the tie-break could not separate | `contestant_ids` (the tied set, ascending) and `placing` (their order), both JSON; `note` such as the vote count. Unique per category and tied set; cleared by *Clear all scores* |
+| `judge_phones` | A judge's linked phone | One per judge. `session_token` cascades from `judge_sessions`, so the link ends with the judge's session |
 | `encoder_judges` | A judge an encoder device may enter sheets for | Set when the tabulator approves the device, changed with `PUT /api/admin/encoders/:id/judges`. A device with none cannot open any sheet |
 | `encoder_sessions` | A tabulating-team device | `status` is `pending` until the tabulator approves it, then `paired`. `pairing_code` is the four digits the device shows; `token` authenticates it |
 | `scoresheets` | A judge's submission lock for one category | `draft` or `submitted` |
@@ -161,6 +166,7 @@ Nothing computed is stored. Results are derived from `scores` and `deductions` e
 | --- | --- | --- |
 | `/api/public` | `GET /info` | Anyone on the LAN; with the device lock on, registered devices only |
 | `/api/judge` | `POST /login`, `POST /logout`, `GET /sheets`, `PUT /scores`, `POST /categories/:id/submit` | A judge with a session token (`Authorization: Bearer …`); with the device lock on, from a registered device |
+| `/api/snap` | `POST /link`; then `GET /me`, `POST /scan`, `POST /unlink` | `/link` needs a six-digit code shown on the judge's signed-in sheet (once, ten minutes, rate-limited); the rest a phone token |
 | `/api/encode` | `POST /pair`, `GET /status`, `POST /unpair`; once approved: `GET /setup`, `GET`/`PUT /sheet`, `POST /sheet/submit`, `POST /scan` | `/pair` needs the encoder access code; everything else an encoder token (`Authorization: Bearer …`), and all but `/status` and `/unpair` an approved one |
 | `/api/admin` | `GET /state`, `GET /results`, CRUD for judges, contestants, categories, criteria, deduction-types, deductions; `PUT /settings`, `/device-lock`, `/signatories`, `/scan-key`; `POST /judges/:id/disconnect`, `/encoders/:id/approve`, `/encoder-code`, `/scoresheets/reopen`, `/backup`, `/reset-scores`; `DELETE /encoders/:id` | Requests from the tabulation computer only |
 
@@ -202,6 +208,8 @@ One socket endpoint, `/ws`. Judges connect with `?token=<session token>`, the ad
 | `presence` | Admin | The list of connected judges changed |
 | `sessions` | Admin | A judge signed in or out, was disconnected, or a device was turned away by the device lock |
 | `encoders` | Admin | An encoder device asked to pair, was approved, or was unpaired |
+| `phone` | One judge's devices | A phone was linked to or unlinked from this judge (`linked`) |
+| `scan` | One judge's devices | A photo from their phone was read and is waiting (`categoryId`); the page fetches it with `GET /api/judge/scans/latest` |
 | `signed_out` | One judge's device | Its session was ended (`message` says why); the socket is then closed |
 
 Events carry no data worth trusting. A client that receives one re-fetches over HTTP.
@@ -252,8 +260,9 @@ This is a trusted-LAN tool, not an internet service.
 
 - **Judges** authenticate with an access code and receive a random 256-bit session token. Generated codes are six digits and failed sign-ins are limited to 10 per device per 5 minutes, which together make guessing a code during an event impractical. A judge can only read and write their own scores: the judge is always taken from the session, and `results.js` filters by judge before anything is computed for them.
 - **One device per judge.** `judge_sessions` holds at most one row per judge. A sign-in from a different device is refused with `409` while that row exists; the same device (same MAC, or same address when the MAC is unknown) replaces its own session. The tabulator ends a session with `POST /api/admin/judges/:id/disconnect`, which deletes the row, sends `signed_out` to the device and closes its socket.
-- **Device lock** (`devices.js`, on by default: no `device_lock` setting counts as on, and only `0` turns it off). A browser never sends its MAC address, so `createDeviceLookup()` reads this computer's neighbour table (`arp -a` on Windows) and maps the request's address to a MAC, re-reading it at most every few seconds. With the lock on, `guard.gate` refuses `/judge`, `/api/public` and `/api/judge` to any device whose MAC is not some judge's `device_mac`, sign-in is refused unless the device is that judge's own, and `guard.enforce()` ends sessions that no longer qualify whenever the lock or a registration changes. A device whose MAC cannot be read (it is behind a router) is refused, not let through. The tabulation computer's own browser is refused too: with the lock on it cannot sign in as a judge, and paper sheets go through the encoder screen instead. Only the admin console stays open there. A MAC address can be spoofed, so the lock is a barrier on top of access codes, not a replacement for them.
+- **Device lock** (`devices.js`, on by default: no `device_lock` setting counts as on, and only `0` turns it off). A browser never sends its MAC address, so `createDeviceLookup()` reads this computer's neighbour table (`arp -a` on Windows) and maps the request's address to a MAC, re-reading it at most every few seconds. With the lock on, `guard.gate` refuses `/judge`, `/api/public` and `/api/judge` to any device whose MAC is not some judge's `device_mac`, sign-in is refused unless the device is that judge's own, and `guard.enforce()` ends sessions that no longer qualify whenever the lock or a registration changes. A device whose MAC cannot be read (it is behind a router) is refused, not let through. The tabulation computer never appears in its own neighbour table, so `ownMacs()` identifies it by its adapters' MAC addresses (the one registered to a judge, if any): it opens the judge pages only when registered, like any other device, and the admin console stays open regardless. A MAC address can be spoofed, so the lock is a barrier on top of access codes, not a replacement for them.
 - **Encoders** pair in two steps: `POST /api/encode/pair` with the team access code (wrong codes are rate-limited like judge sign-in) creates a `pending` row and returns a token and a four-digit pairing code; the token does nothing but `GET /status` until the tabulator, after checking the pairing code, approves it on the tabulation computer. Pending requests expire after an hour and are capped at 20. An encoder can enter and change only the draft sheets of the judges assigned to it in `encoder_judges` (any other judge answers `409`, since the screen reads `403` as "waiting for approval"), never a submitted one. Each score it saves records `entered_by`.
+- **A judge's phone** (`phones.js`, `routes/snap.js`). The judge, signed in on their registered device, asks `POST /api/judge/phone/link` for a six-digit code, shown with a QR code of `…/snap/#code` (the code sits after `#`, so it is never in a request line or log). The phone redeems it once, within ten minutes, for a token in `judge_phones` tied to the judge's session, which cascades away when that session ends. The token can only send photos for the judge's own draft categories; it cannot read or write scores. A reading is held in memory, latest only, until the judge's own device fetches it (`GET /api/judge/scans/latest`, `/scans/photo`) and the judge fills it in, so scores still enter only through the judge's registered, signed-in device. `/api/snap` is not behind the device lock for that reason.
 - **Photo reading** (`scan.js`) sends the photo to Claude (`claude-opus-5-5`, structured JSON output, `fallbacks: "default"`) through the official SDK, with the expected rows and columns. The reading is never saved directly: `interpretScan()` matches rows by contingent number, drops values above a criterion's maximum or below zero, flags cells Claude marked unclear and rows whose scores do not add up to the written total, and the encoder confirms every value before `PUT /sheet`. The API key is stored in `settings.anthropic_api_key` and left out of every response; `ANTHROPIC_API_KEY` is the fallback. Only `/api/encode/scan` accepts a body over 100 KB (10 MB, for the photo).
 - **Admin** has no password. `adminAccessProblem()` in `index.js` guards `/admin`, `/api/admin` and the admin WebSocket with three checks:
   - the connection comes from the tabulation computer (loopback);

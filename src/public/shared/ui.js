@@ -17,7 +17,7 @@ export function confirmDialog({ title, message, confirmLabel = 'Confirm', danger
     let confirmed = false;
     const dialog = h('dialog', { class: 'modal' },
       h('div', { class: 'modal-head' }, h('h2', null, title)),
-      h('div', { class: 'modal-body' }, [].concat(message).map((line) => h('p', null, line))),
+      h('div', { class: 'modal-body' }, [].concat(message).filter(Boolean).map((line) => h('p', null, line))),
       h('div', { class: 'modal-foot' },
         h('button', { class: 'btn', type: 'button', onclick: () => dialog.close() }, 'Cancel'),
         h('button', {

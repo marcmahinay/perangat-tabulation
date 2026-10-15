@@ -41,6 +41,18 @@ Open **Criteria guide** at the bottom of the sheet to read the full description 
 | **All scores saved** (top right) | Everything you typed is safely with the tabulator. |
 | **Scores not saved — retrying** (top right, in red) | Your device has lost the connection. See below. |
 
+## Photographing your paper scoresheet with your phone
+
+If you write your scores on paper, your phone can photograph the sheet and put the scores on your scoresheet for you.
+
+1. On your signed-in scoresheet, press **Scan with phone** at the top. A QR code appears.
+2. Open your phone's camera, point it at the code, and tap the link that appears. Your phone is now linked to your scoresheet. (No QR scanner? Open the address shown on your phone and type the six-digit code.)
+3. On your phone, choose the category and press **Photograph my scoresheet**. Lay the sheet flat in good light with the whole table in the picture.
+4. After a few seconds the scores appear at the top of your scoresheet, with the photo. Press **Fill my … scoresheet**.
+5. The scores read from the photo are shown in **blue**. Check every one against your paper and correct any that are wrong. Cells outlined in **red** could not be read for sure; check or type them. Then press **Done checking**.
+
+Your phone can only send photos; it cannot change or submit your scores. It is unlinked when you sign out, or with **Unlink this phone** on the phone or **Unlink phone** under **Scan with phone**. Reading photos needs the tabulator to have set it up; if your phone says it is not set up, type the scores in.
+
 ## If you are asked to score on paper
 
 The tabulator may hand you a printed scoresheet instead. Write the points for each criterion, up to the maximum printed under its name, and the total for each contingent. Leave deduction, final score and rank empty. Sign the sheet and write the date and time. The tabulating team enters your scores afterwards and gives you a printed copy to check and sign.

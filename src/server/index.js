@@ -11,6 +11,8 @@ const publicRoutes = require('./routes/public');
 const judgeRoutes = require('./routes/judge');
 const adminRoutes = require('./routes/admin');
 const encodeRoutes = require('./routes/encode');
+const snapRoutes = require('./routes/snap');
+const { createPhones } = require('./phones');
 const { createSheetReader } = require('./scan');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -128,6 +130,7 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0', identify = c
     return (row && row.value) || process.env.ANTHROPIC_API_KEY || '';
   };
   const sheetReader = readSheet || createSheetReader({ apiKey: scanKey });
+  const phones = createPhones({ db, hub });
 
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -148,7 +151,8 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0', identify = c
   });
   // Every request body is small, except a photo of a paper scoresheet, which that route parses itself.
   const smallJson = express.json({ limit: '100kb' });
-  app.use((req, res, next) => (req.path === '/api/encode/scan' ? next() : smallJson(req, res, next)));
+  const photoRoutes = new Set(['/api/encode/scan', '/api/snap/scan']);
+  app.use((req, res, next) => (photoRoutes.has(req.path) ? next() : smallJson(req, res, next)));
   app.use((req, res, next) => {
     req.body = req.body || {};
     next();
@@ -156,16 +160,19 @@ async function startServer({ dbPath, port = 3000, host = '0.0.0.0', identify = c
 
   // Everything a judge device asks for passes the device guard first.
   app.use('/api/public', guard.gate, publicRoutes({ db }));
-  app.use('/api/judge', guard.gate, judgeRoutes({ db, hub, guard }));
+  app.use('/api/judge', guard.gate, judgeRoutes({ db, hub, guard, phones, lanUrls: serverInfo.urls }));
   app.use('/api/admin', localOnly, adminRoutes({ db, hub, serverInfo, guard, scanKey }));
   // Encoder devices are protected by pairing, not by the judges' device lock.
   app.use('/api/encode', encodeRoutes({ db, hub, identify, readSheet: sheetReader }));
+  // A judge's phone is not a registered judge device: the link made from the judge's own sheet is its pass.
+  app.use('/api/snap', snapRoutes({ db, phones, readSheet: sheetReader }));
   app.use('/api', (req, res, next) => next(new HttpError(404, 'Not found.')));
 
   app.get('/', (req, res) => res.redirect('/judge/'));
   app.use('/shared', express.static(path.join(PUBLIC_DIR, 'shared')));
   app.use('/judge', guard.gate, express.static(path.join(PUBLIC_DIR, 'judge')));
   app.use('/encode', express.static(path.join(PUBLIC_DIR, 'encode')));
+  app.use('/snap', express.static(path.join(PUBLIC_DIR, 'snap')));
   app.use('/admin', localOnly, express.static(path.join(PUBLIC_DIR, 'admin')));
 
   // eslint-disable-next-line no-unused-vars

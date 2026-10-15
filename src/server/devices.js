@@ -79,6 +79,18 @@ function networkInterfaces() {
   return interfaces;
 }
 
+/**
+ * This computer's own MAC addresses, the adapter that has `ip` first. A request
+ * from this computer never appears in its own neighbour table, so this is how
+ * it is identified for the device lock.
+ */
+function ownMacs(ip) {
+  const adapters = Object.values(networkInterfaces()).flat()
+    .filter((address) => address && !address.internal && address.mac && address.mac !== '00:00:00:00:00:00');
+  adapters.sort((a, b) => Number(b.address === ip) - Number(a.address === ip));
+  return [...new Set(adapters.map((address) => normalizeMac(address.mac)).filter(Boolean))];
+}
+
 /** True for a request made from the tabulation computer itself, by any of its own addresses. */
 function isThisComputer(ip) {
   if (ip === '127.0.0.1' || ip === '::1') return true;
@@ -149,8 +161,8 @@ function sameDevice(a, b) {
  *  - a judge is signed in on one device at a time;
  *  - with the device lock on, only a device registered to a judge may open the
  *    judge pages, and only as that judge. That includes the tabulation computer
- *    itself: the admin console stays open there, but its browser cannot sign in
- *    as a judge. Paper sheets are entered on the encoder screen instead.
+ *    itself, identified by its own MAC address: unless it is registered to a
+ *    judge, its browser cannot sign in as one. The admin console always works.
  */
 function createDeviceGuard({ db, hub, identify }) {
   const blocked = new Map();
@@ -177,8 +189,9 @@ function createDeviceGuard({ db, hub, identify }) {
   /** Why this device may not use the judge pages, or null when it may. */
   function problem(device) {
     if (!locked()) return null;
-    if (device.local) {
-      return 'The device lock is on, so the judge scoresheet cannot be opened on the tabulation computer. Use a registered judge device, or turn the lock off under Judges.';
+    if (device.local && !(device.mac && db.get('SELECT 1 AS ok FROM judges WHERE device_mac = ?', device.mac))) {
+      return 'The device lock is on, and this tabulation computer is not registered to a judge, so the judge scoresheet cannot be opened here. '
+        + `Use a registered judge device, register this computer (${device.mac || 'MAC address unknown'}) to a judge, or turn the lock off under Judges.`;
     }
     if (!device.mac) {
       return 'This device cannot be identified. Judge devices must be on the same Wi-Fi or LAN as the tabulation computer.';
@@ -188,8 +201,19 @@ function createDeviceGuard({ db, hub, identify }) {
   }
 
   /** Express middleware for everything a judge device asks for. Sets `req.device`. */
+  /**
+   * The tabulation computer has several adapters. It counts as the one that is
+   * registered to a judge, if any, so registering any of its MAC addresses works.
+   */
+  function withLocalMac(device) {
+    if (!device.local) return device;
+    const macs = ownMacs(device.ip);
+    const registered = macs.find((mac) => db.get('SELECT 1 AS ok FROM judges WHERE device_mac = ?', mac));
+    return { ...device, mac: registered || macs[0] || null };
+  }
+
   async function gate(req, res, next) {
-    req.device = await identify(req);
+    req.device = withLocalMac(await identify(req));
     const refusal = problem(req.device);
     if (!refusal) {
       next();
@@ -233,4 +257,4 @@ function createDeviceGuard({ db, hub, identify }) {
   };
 }
 
-module.exports = { normalizeMac, parseNeighbours, createDeviceLookup, createDeviceGuard, sameDevice, isThisComputer, networkInterfaces };
+module.exports = { normalizeMac, parseNeighbours, createDeviceLookup, createDeviceGuard, sameDevice, isThisComputer, networkInterfaces, ownMacs };

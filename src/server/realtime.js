@@ -88,7 +88,14 @@ function createHub({ server, authenticate }) {
     wss.close();
   }
 
-  return { broadcast, onlineJudgeIds, disconnectJudge, close };
+  /** Sends to the devices signed in as one judge. */
+  function sendToJudge(judgeId, event) {
+    for (const [ws, client] of clients) {
+      if (client.role === 'judge' && client.judgeId === judgeId) send(ws, event);
+    }
+  }
+
+  return { broadcast, onlineJudgeIds, disconnectJudge, sendToJudge, close };
 }
 
 module.exports = { createHub };

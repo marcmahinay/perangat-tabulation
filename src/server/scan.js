@@ -132,6 +132,23 @@ function createSheetReader({ apiKey, createClient = (key) => new Anthropic({ api
   };
 }
 
+/** What a photo of one judge's sheet for one category should show: its rows and columns, in printed order. */
+function sheetLayout(db, category, judgeId) {
+  return {
+    category,
+    judge: db.get('SELECT id, judge_no, name FROM judges WHERE id = ?', judgeId),
+    criteria: db.all('SELECT id, name, weight FROM criteria WHERE category_id = ? ORDER BY sort_order, id', category.id),
+    contestants: db.all(
+      `SELECT c.id, c.contestant_no, c.name
+         FROM contestants c
+         JOIN category_contestants cc ON cc.contestant_id = c.id
+        WHERE cc.category_id = ?
+        ORDER BY c.contestant_no`,
+      category.id,
+    ),
+  };
+}
+
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 /**
@@ -201,4 +218,4 @@ function interpretScan(raw, layout) {
   };
 }
 
-module.exports = { createSheetReader, interpretScan, parseDataUrl, SCHEMA, MODEL };
+module.exports = { createSheetReader, interpretScan, parseDataUrl, sheetLayout, SCHEMA, MODEL };

@@ -83,6 +83,15 @@ CREATE TABLE IF NOT EXISTS scores (
 CREATE INDEX IF NOT EXISTS idx_scores_criterion  ON scores(criterion_id);
 CREATE INDEX IF NOT EXISTS idx_scores_contestant ON scores(contestant_id);
 
+-- A judge's phone, linked from their signed-in scoresheet, used only to send
+-- photos of their paper sheet. It goes when the judge's session ends.
+CREATE TABLE IF NOT EXISTS judge_phones (
+  token         TEXT    PRIMARY KEY,
+  judge_id      INTEGER NOT NULL UNIQUE REFERENCES judges(id) ON DELETE CASCADE,
+  session_token TEXT    NOT NULL REFERENCES judge_sessions(token) ON DELETE CASCADE,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 -- The judges' vote on contingents the tie-break could not separate. It applies
 -- only while exactly these contingents are still tied in this category.
 CREATE TABLE IF NOT EXISTS tie_votes (

@@ -14,7 +14,7 @@ const { HttpError } = require('../errors');
 const v = require('../validate');
 const { parseCategory, judgeSheet } = require('../results');
 const { randomAccessCode } = require('../seed');
-const { interpretScan } = require('../scan');
+const { interpretScan, sheetLayout } = require('../scan');
 
 const MAX_FAILED_PAIRINGS = 10;
 const PAIRING_WINDOW_MS = 5 * 60 * 1000;
@@ -240,20 +240,7 @@ function encodeRoutes({ db, hub, identify, readSheet }) {
   // Reads a photo of the paper sheet. Nothing is saved: the screen shows the numbers for checking first.
   router.post('/scan', express.json({ limit: PHOTO_LIMIT }), requirePaired, async (req, res) => {
     const { judgeId, category } = sheetParams(req, req.body);
-    const judge = db.get('SELECT id, judge_no, name FROM judges WHERE id = ?', judgeId);
-    const layout = {
-      category,
-      judge,
-      criteria: db.all('SELECT id, name, weight FROM criteria WHERE category_id = ? ORDER BY sort_order, id', category.id),
-      contestants: db.all(
-        `SELECT c.id, c.contestant_no, c.name
-           FROM contestants c
-           JOIN category_contestants cc ON cc.contestant_id = c.id
-          WHERE cc.category_id = ?
-          ORDER BY c.contestant_no`,
-        category.id,
-      ),
-    };
+    const layout = sheetLayout(db, category, judgeId);
     const raw = await readSheet(req.body.image, layout);
     res.json(interpretScan(raw, layout));
   });

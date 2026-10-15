@@ -4,11 +4,10 @@
 import { h, clear, fmt, plain, localTime } from '/shared/dom.js';
 import { request } from '/shared/api.js';
 import { confirmDialog, toast } from '/shared/ui.js';
+import { photoDataUrl } from '/shared/photo.js';
 
 const TOKEN_KEY = 'perangat.encoder.token';
 const POLL_MS = 2000;
-// Long enough edge to read handwriting, small enough to send over Wi-Fi quickly.
-const PHOTO_EDGE = 2400;
 
 const root = document.getElementById('app');
 
@@ -255,25 +254,6 @@ async function submitSheet() {
   } catch (error) {
     if (error.status !== 401 && error.status !== 403) toast(error.message, 'error');
   }
-}
-
-/** Shrinks a phone photo before sending it, and returns it as a data URL. */
-async function photoDataUrl(file) {
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  image.src = url;
-  try {
-    await image.decode();
-  } catch (error) {
-    URL.revokeObjectURL(url);
-    throw error;
-  }
-  const scale = Math.min(1, PHOTO_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(image.naturalWidth * scale);
-  canvas.height = Math.round(image.naturalHeight * scale);
-  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-  return { url, data: canvas.toDataURL('image/jpeg', 0.85) };
 }
 
 async function scanPhoto(file) {

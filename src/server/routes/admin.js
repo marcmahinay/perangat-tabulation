@@ -8,7 +8,7 @@ const v = require('../validate');
 const { computeDeductionCharge } = require('../scoring');
 const { listCategories, listCriteria, buildResults, categoryResults, parseCategory } = require('../results');
 const { randomAccessCode } = require('../seed');
-const { normalizeMac } = require('../devices');
+const { normalizeMac, ownMacs } = require('../devices');
 const { encoderAccessCode } = require('./encode');
 
 const SETTING_KEYS = ['event_name', 'event_subtitle', 'event_venue', 'event_date', 'tabulator_name'];
@@ -103,6 +103,7 @@ module.exports = function adminRoutes({ db, hub, serverInfo, guard, scanKey }) {
         .map((session) => [session.judge_id, { ip: session.ip, mac: session.mac, since: session.created_at }]),
     );
     const chairman = chairmanId();
+    const phones = new Set(db.all('SELECT judge_id FROM judge_phones').map((row) => row.judge_id));
     const encoderJudges = new Map();
     for (const link of db.all('SELECT encoder_id, judge_id FROM encoder_judges')) {
       if (!encoderJudges.has(link.encoder_id)) encoderJudges.set(link.encoder_id, []);
@@ -112,7 +113,7 @@ module.exports = function adminRoutes({ db, hub, serverInfo, guard, scanKey }) {
     return {
       // The Claude API key is kept out of every response.
       settings: Object.fromEntries(db.all("SELECT key, value FROM settings WHERE key <> 'anthropic_api_key'").map((row) => [row.key, row.value])),
-      server: { port: serverInfo.port, urls: serverInfo.urls(), dbPath: serverInfo.dbPath },
+      server: { port: serverInfo.port, urls: serverInfo.urls(), dbPath: serverInfo.dbPath, macs: ownMacs() },
       deviceLock: guard.locked(),
       blockedDevices: guard.blocked(),
       encoders: {
@@ -130,6 +131,7 @@ module.exports = function adminRoutes({ db, hub, serverInfo, guard, scanKey }) {
         .map((judge) => ({
           ...judge,
           is_chairman: judge.id === chairman,
+          phone_linked: phones.has(judge.id),
           categoryIds: judgeLinks.get(judge.id) || [],
           session: sessions.get(judge.id) || null,
         })),

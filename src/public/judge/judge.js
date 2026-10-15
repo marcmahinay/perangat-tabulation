@@ -26,6 +26,12 @@ let saveFailed = false;
 let pumpTimer = null;
 let restoringFocus = false;
 
+let phoneScan = null;       // the latest reading of a photo from the judge's phone, waiting to be filled in
+let phoneScanPhoto = null;  // preview address of that photo
+let phoneDialog = null;     // the open "Scan with phone" window
+// Cells filled from a photo and not yet changed by hand: key -> why the reader was unsure ('' if it was not).
+const fromPhoto = new Map();
+
 const keyOf = (contestantId, criterionId) => `${contestantId}:${criterionId}`;
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -258,6 +264,166 @@ function onType(key, input, max, commit) {
   if (pending.size) schedulePump(commit ? 0 : TYPING_PAUSE_MS);
 }
 
+// ---- A phone that photographs the paper scoresheet ----------------------------
+
+/** Shows the linked phone, or a QR code to link one. */
+async function openPhoneDialog() {
+  if (phoneDialog) return;
+  const body = h('div', { class: 'modal-body' }, h('p', { class: 'muted' }, 'Loading…'));
+  const dialog = h('dialog', { class: 'modal phone-dialog' },
+    h('div', { class: 'modal-head' }, h('h2', null, 'Scan your paper scoresheet with your phone')),
+    body,
+    h('div', { class: 'modal-foot' }, h('button', { class: 'btn', type: 'button', onclick: () => dialog.close() }, 'Close')),
+  );
+  phoneDialog = { dialog, body, qrUrl: null };
+  dialog.addEventListener('close', () => {
+    if (phoneDialog && phoneDialog.qrUrl) URL.revokeObjectURL(phoneDialog.qrUrl);
+    dialog.remove();
+    phoneDialog = null;
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  await showPhoneState();
+}
+
+async function showPhoneState() {
+  if (!phoneDialog) return;
+  let phone;
+  try {
+    ({ phone } = await api('GET', '/phone'));
+  } catch (error) {
+    if (error.status !== 401) clear(phoneDialog.body).append(h('p', { class: 'form-error' }, error.message));
+    return;
+  }
+  if (!phone) {
+    await showLinkCode();
+    return;
+  }
+  clear(phoneDialog.body).append(
+    h('p', { class: 'strong' }, 'Your phone is linked.'),
+    h('p', null, 'On your phone, choose the category and press Photograph my scoresheet. The scores read from the photo appear here for you to check before anything goes on your scoresheet.'),
+    h('div', { class: 'phone-actions' },
+      h('button', { class: 'btn', type: 'button', onclick: showLinkCode }, 'Link a different phone'),
+      h('button', {
+        class: 'btn danger', type: 'button',
+        onclick: async () => {
+          await api('DELETE', '/phone').catch(() => {});
+          showPhoneState();
+        },
+      }, 'Unlink phone'),
+    ),
+  );
+}
+
+async function showLinkCode() {
+  if (!phoneDialog) return;
+  let link;
+  try {
+    link = await api('POST', '/phone/link');
+  } catch (error) {
+    if (error.status !== 401) clear(phoneDialog.body).append(h('p', { class: 'form-error' }, error.message));
+    return;
+  }
+  if (phoneDialog.qrUrl) URL.revokeObjectURL(phoneDialog.qrUrl);
+  phoneDialog.qrUrl = link.qr ? URL.createObjectURL(new Blob([link.qr], { type: 'image/svg+xml' })) : null;
+  clear(phoneDialog.body).append(...[
+    h('ol', { class: 'phone-steps' },
+      h('li', null, 'Open the camera on your phone and point it at this code.'),
+      h('li', null, 'Tap the link that appears. Your phone is then linked to your scoresheet.'),
+    ),
+    phoneDialog.qrUrl && h('img', { class: 'qr', src: phoneDialog.qrUrl, alt: 'QR code that links your phone' }),
+    link.address && h('p', { class: 'muted center' }, 'No QR scanner? On your phone open ', h('code', null, link.address), ' and type this code:'),
+    h('p', { class: 'link-code' }, link.code),
+    h('p', { class: 'muted center' }, 'The code works once, for ten minutes. Your phone can only send photos; it cannot change your scores.'),
+  ].filter(Boolean));
+}
+
+/** Fetches the latest reading from the phone, with its photo, if there is one waiting. */
+async function loadPhoneScan() {
+  let scan;
+  try {
+    ({ scan } = await api('GET', '/scans/latest'));
+  } catch {
+    return;
+  }
+  if (!scan) {
+    setPhoneScan(null, null);
+    return;
+  }
+  if (phoneScan && phoneScan.id === scan.id) return;
+  let photo = null;
+  try {
+    const response = await fetch('/api/judge/scans/photo', { headers: { Authorization: `Bearer ${token}` } });
+    if (response.ok) photo = URL.createObjectURL(await response.blob());
+  } catch {
+    // The scores can still be checked without the picture.
+  }
+  setPhoneScan(scan, photo);
+  if (scan.categoryId !== activeId) toast(`Scores from your phone's photo of ${scan.categoryName} are ready to check.`, 'ok');
+}
+
+function setPhoneScan(scan, photo) {
+  if (phoneScanPhoto) URL.revokeObjectURL(phoneScanPhoto);
+  phoneScan = scan;
+  phoneScanPhoto = photo;
+  if (data) render();
+}
+
+async function discardPhoneScan() {
+  await api('DELETE', '/scans/latest').catch(() => {});
+  setPhoneScan(null, null);
+}
+
+/** Puts the scores read from the photo into the judge's sheet, marked for checking. They save as if typed. */
+async function fillFromPhone() {
+  const scan = phoneScan;
+  const sheet = data.sheets.find((entry) => entry.category.id === scan.categoryId);
+  if (!sheet || sheet.status === 'submitted') {
+    toast('That scoresheet is already submitted.', 'error');
+    return;
+  }
+  for (const cell of scan.cells) {
+    if (cell.value != null || cell.problem) fromPhoto.set(keyOf(cell.contestantId, cell.criterionId), cell.problem || '');
+  }
+  activeId = sheet.category.id;
+  await discardPhoneScan();
+  for (const cell of scan.cells) {
+    if (cell.value == null) continue;
+    const key = keyOf(cell.contestantId, cell.criterionId);
+    const input = view && view.inputs.get(key);
+    const criterion = sheet.criteria.find((entry) => entry.id === cell.criterionId);
+    if (!input || input.disabled || !criterion) continue;
+    input.value = plain(cell.value);
+    onType(key, input, criterion.weight, true);
+  }
+  // Draw again now that the values are in, so each cell shows blue (read) or red (needs typing).
+  render();
+  toast('The scores from your photo are filled in. Check each blue one against your paper.', 'ok');
+}
+
+function phoneScanPanel() {
+  const scan = phoneScan;
+  const sheet = data.sheets.find((entry) => entry.category.id === scan.categoryId);
+  const locked = !sheet || sheet.status === 'submitted';
+  const read = scan.cells.filter((cell) => cell.value != null).length;
+  const flagged = scan.cells.filter((cell) => cell.problem).length;
+  return h('section', { class: 'card phone-scan' },
+    phoneScanPhoto && h('a', { href: phoneScanPhoto, target: '_blank', class: 'photo' }, h('img', { src: phoneScanPhoto, alt: 'Photo from your phone' })),
+    h('div', { class: 'phone-scan-text' },
+      h('h2', null, `Photo from your phone · ${scan.categoryName}`),
+      h('p', null, `${read} score${read === 1 ? '' : 's'} read${flagged ? `; ${flagged} could not be read for sure and are left for you to type` : ''}. Nothing is on your scoresheet yet.`),
+      scan.warnings.length > 0 && h('ul', { class: 'warnings' }, scan.warnings.map((warning) => h('li', null, warning))),
+      scan.notes && h('p', { class: 'muted' }, `Note from the reader: ${scan.notes}`),
+      locked && h('p', { class: 'muted' }, 'This scoresheet is already submitted, so it cannot be filled from the photo.'),
+      h('div', { class: 'phone-actions' },
+        !locked && h('button', { class: 'btn primary', type: 'button', onclick: fillFromPhone }, `Fill my ${scan.categoryName} scoresheet`),
+        h('button', { class: 'btn', type: 'button', onclick: discardPhoneScan }, 'Discard'),
+        h('span', { class: 'muted' }, 'Tap the photo to see it full size.'),
+      ),
+    ),
+  );
+}
+
 // ---- Rendering --------------------------------------------------------------
 
 function sheetProgress(sheet) {
@@ -277,6 +443,7 @@ function topbar() {
     h('span', { class: 'who' }, judgeLabel(data.judge)),
     h('span', { class: 'spacer' }),
     frame.status,
+    h('button', { class: 'btn small', onclick: openPhoneDialog }, 'Scan with phone'),
     h('button', { class: 'btn small', onclick: signOut }, 'Sign out'),
   );
 }
@@ -321,7 +488,11 @@ function sheetPanel(sheet) {
         autocomplete: 'off',
         disabled: locked,
         'aria-label': `${criterion.name} for ${row.contestant.name}, maximum ${plain(criterion.weight)}`,
-        oninput: () => onType(key, input, criterion.weight, false),
+        oninput: () => {
+          // Typed over by hand: it is the judge's own score now, not the photo's.
+          if (fromPhoto.delete(key)) input.classList.remove('from-photo', 'flagged');
+          onType(key, input, criterion.weight, false);
+        },
         onchange: () => onType(key, input, criterion.weight, true),
         onfocus: () => {
           if (!restoringFocus) input.select();
@@ -335,6 +506,14 @@ function sheetPanel(sheet) {
         },
       });
       input.value = plain(valueOf(key));
+      if (fromPhoto.has(key)) {
+        const problem = fromPhoto.get(key);
+        input.classList.add(valueOf(key) == null ? 'flagged' : 'from-photo');
+        if (problem) {
+          input.classList.add('flagged');
+          input.title = problem;
+        }
+      }
       view.inputs.set(key, input);
       return input;
     });
@@ -397,12 +576,13 @@ function render() {
   invalid.clear();
   view = null;
   const sheet = activeSheet();
-  clear(root).append(
+  clear(root).append(...[
     topbar(),
+    phoneScan && phoneScanPanel(),
     ...(sheet
-      ? [tabs(), sheetPanel(sheet)]
+      ? [tabs(), photoHint(sheet), sheetPanel(sheet)]
       : [h('p', { class: 'empty' }, 'You have not been assigned to a category yet. Please wait for the tabulator.')]),
-  );
+  ].filter(Boolean));
   refresh();
 
   const input = focused && view && view.inputs.get(focused[0]);
@@ -471,10 +651,33 @@ function refresh() {
 
 // ---- Actions ----------------------------------------------------------------
 
+/** While scores filled from a photo are unchecked, a reminder above the sheet. */
+function photoHint(sheet) {
+  const keys = sheet.rows.flatMap((row) => sheet.criteria.map((criterion) => keyOf(row.contestant.id, criterion.id)));
+  const marked = keys.filter((key) => fromPhoto.has(key));
+  if (!marked.length || sheet.status === 'submitted') return null;
+  const read = marked.filter((key) => valueOf(key) != null).length;
+  const unsure = marked.filter((key) => fromPhoto.get(key) || valueOf(key) == null).length;
+  return h('div', { class: 'photo-hint' },
+    h('span', null,
+      `${read} score${read === 1 ? ' was' : 's were'} read from your photo (blue). Check each against your paper and correct any that are wrong.`,
+      unsure > 0 ? ` ${unsure} cell${unsure === 1 ? ' is' : 's are'} outlined in red: the photo could not be read for sure there, so check or type ${unsure === 1 ? 'it' : 'them'}.` : ''),
+    h('button', {
+      class: 'btn small', type: 'button',
+      onclick: () => {
+        for (const key of keys) fromPhoto.delete(key);
+        render();
+      },
+    }, 'Done checking'),
+  );
+}
+
 async function submitSheet(sheet) {
+  const unchecked = sheet.rows.some((row) => sheet.criteria.some((criterion) => fromPhoto.has(keyOf(row.contestant.id, criterion.id))));
   const confirmed = await confirmDialog({
     title: `Submit ${sheet.category.name}?`,
     message: [
+      unchecked && 'Some scores were read from your photo and are still marked blue. Make sure each matches your paper sheet.',
       'Your scores for this category will be sent to the tabulator as final.',
       'After submitting you cannot change them unless the tabulator reopens your scoresheet.',
     ],
@@ -522,6 +725,15 @@ function openLive() {
         endSession(event.message);
         return;
       }
+      if (event.type === 'scan') {
+        loadPhoneScan();
+        return;
+      }
+      if (event.type === 'phone') {
+        if (event.linked && phoneDialog) toast('Your phone is linked.', 'ok');
+        showPhoneState();
+        return;
+      }
       const mine = event.type === 'sheets' && data && event.judgeId === data.judge.id;
       if (event.type === 'config' || event.type === 'deductions' || mine) loadSheets().catch(() => {});
     },
@@ -536,6 +748,7 @@ async function start() {
   try {
     await loadSheets();
     openLive();
+    loadPhoneScan();
   } catch (error) {
     if (error.status !== 401) messageScreen(error.message, start);
   }

@@ -108,6 +108,85 @@
   color: #fff;
 }
 
+/* A phone photographing the paper scoresheet */
+
+.phone-dialog .qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+  margin: 6px auto 10px;
+}
+
+.phone-steps {
+  margin: 0 0 6px;
+  padding-left: 20px;
+}
+
+.link-code {
+  margin: 4px 0 8px;
+  color: var(--brand-dark);
+  font: 800 2rem/1 Consolas, "Courier New", monospace;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+.center { text-align: center; }
+.strong { font-weight: 700; }
+
+.phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 6px;
+}
+
+.phone-scan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin: 14px 20px 0;
+  padding: 14px 18px;
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.phone-scan .photo img {
+  display: block;
+  width: 150px;
+  max-height: 210px;
+  object-fit: contain;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.phone-scan-text {
+  flex: 1 1 300px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.phone-scan .warnings {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--warn);
+}
+
+.photo-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 10px 20px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+
 /* Category tabs */
 
 .tabs {
@@ -264,6 +343,18 @@ table.scores tr.complete td.no {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+/* Filled from a photo and not yet checked by the judge. */
+.score-input.from-photo {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+/* The photo reader could not be sure of this cell. */
+.score-input.flagged {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-soft);
 }
 
 .score-input.unsaved {

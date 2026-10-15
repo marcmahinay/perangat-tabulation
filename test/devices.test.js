@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const WebSocket = require('ws');
 const { startServer } = require('../src/server');
-const { normalizeMac, parseNeighbours, createDeviceLookup } = require('../src/server/devices');
+const { normalizeMac, parseNeighbours, createDeviceLookup, ownMacs } = require('../src/server/devices');
 
 const TABLET_A = { ip: '10.0.0.11', mac: 'A4:83:E7:00:00:0A' };
 const TABLET_B = { ip: '10.0.0.12', mac: 'A4:83:E7:00:00:0B' };
@@ -263,7 +263,8 @@ test('with the lock on, only registered devices can open the judge pages', async
   // So does no other device, not even the tabulation computer's own browser; its admin console still works.
   const local = await call('GET', '/judge/');
   assert.equal(local.status, 403);
-  assert.match(local.text, /cannot be opened on the tabulation computer/);
+  assert.match(local.text, /this tabulation computer is not registered to a judge/);
+  assert.ok(local.text.includes(ownMacs()[0]), 'the refusal names this computer\'s MAC so it can be registered');
   const one = judges[0];
   assert.equal((await login(one)).status, 403, 'the right access code is not enough on the tabulation computer');
   assert.equal((await admin('GET', '/state')).status, 200);
@@ -315,6 +316,28 @@ test('registering a device that was turned away lets it in, and replacing a regi
   assert.equal((await login(one, STRANGER)).status, 200);
   const { blockedDevices } = (await admin('GET', '/state')).json;
   assert.equal(blockedDevices.some((device) => device.mac === STRANGER.mac), false);
+});
+
+test('the tabulation computer registered to a judge opens the judge page, and signs in only as that judge', async () => {
+  const [, two, three] = judges;
+  const thisComputer = ownMacs()[0];
+  await admin('PUT', `/judges/${three.id}`, { name: three.name, device_mac: thisComputer });
+
+  assert.equal((await call('GET', '/judge/')).status, 200);
+  assert.equal((await login(three)).status, 200);
+  const wrongJudge = await login(two);
+  assert.equal(wrongJudge.status, 403);
+  assert.match(wrongJudge.json.error, /not the device registered for Judge 2/);
+
+  await refreshJudges();
+  assert.equal(judges[2].session.mac, thisComputer);
+  assert.ok((await admin('GET', '/state')).json.server.macs.includes(thisComputer));
+
+  // Clearing the registration turns it away again and ends its session.
+  await admin('PUT', `/judges/${three.id}`, { name: three.name, device_mac: '' });
+  assert.equal((await call('GET', '/judge/')).status, 403);
+  await refreshJudges();
+  assert.equal(judges[2].session, null);
 });
 
 test('turning the lock off lets any device open the judge pages again', async () => {

@@ -72,7 +72,7 @@ In the admin console's sidebar:
 
 A judge is signed in on **one device at a time**. A second device is refused, even with the right code, until the first signs out or the tabulator presses **Disconnect** on the Judges page. That page shows the device signed in as each judge.
 
-The **device lock** on the Judges page ties each judge to one device by its MAC address, and it is **on from the start**. A device that is not registered to a judge cannot open the judge scoresheet at all; that includes the tabulation computer's own browser. To register a judge's device, open the judge address on it: it is turned away and listed under *Devices turned away*, where *Register to a judge…* lets it in. Turn the lock off under Judges to let any device in. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#judge-devices).
+The **device lock** on the Judges page ties each judge to one device by its MAC address, and it is **on from the start**. A device that is not registered to a judge cannot open the judge scoresheet at all; that includes the tabulation computer's own browser, unless its MAC address is registered to a judge. To register a judge's device, open the judge address on it: it is turned away and listed under *Devices turned away*, where *Register to a judge…* lets it in. Turn the lock off under Judges to let any device in. See the [Tabulator's Guide](docs/TABULATOR_GUIDE.md#judge-devices).
 
 Judges enter points per criterion, up to the maximum shown under each column. Scores save as they type. When a category is fully scored the judge presses **Submit final scores**, which locks that scoresheet.
 
@@ -88,6 +88,10 @@ If a device cannot connect:
 - **Live monitor** shows each judge's total for each contingent as it is entered, which judges are connected, and who has submitted. *Reopen* unlocks a submitted scoresheet when a judge needs to correct something.
 - **Deductions** — record time and safety penalties. For timed rules, type the measured time (for example `6:15`) and the app works out the points.
 - **Results** — live totals and ranking per category. Results are marked *Provisional* until every judge assigned to the category has submitted.
+
+## Judges photographing their own sheets
+
+A judge who writes scores on paper can press **Scan with phone** on their scoresheet and scan the QR code with their phone's camera. The phone is then linked to their account and can only send photos: Claude reads each photo, and the scores appear on the judge's own signed-in device to check, fill in and correct before submitting. The phone needs no access code and no device registration, and the link ends when the judge signs out. See the [Judge's Guide](docs/JUDGE_GUIDE.md).
 
 ## Encoding paper scoresheets
 

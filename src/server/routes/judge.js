@@ -6,6 +6,7 @@ const { HttpError } = require('../errors');
 const v = require('../validate');
 const { parseCategory, judgeSheet, judgeSheets } = require('../results');
 const { sameDevice } = require('../devices');
+const QRCode = require('qrcode');
 
 const MAX_FAILED_LOGINS = 10;
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
@@ -29,7 +30,7 @@ function judgeForToken(db, token) {
 }
 
 /** `guard.gate` runs before this router, so every request here carries `req.device`. */
-function judgeRoutes({ db, hub, guard }) {
+function judgeRoutes({ db, hub, guard, phones, lanUrls }) {
   const router = express.Router();
   const failedLogins = new Map();
 
@@ -90,6 +91,62 @@ function judgeRoutes({ db, hub, guard }) {
   router.post('/logout', requireJudge, (req, res) => {
     db.run('DELETE FROM judge_sessions WHERE token = ?', req.token);
     guard.tellAdmin();
+    res.json({ ok: true });
+  });
+
+  // ---- A phone linked to photograph the judge's paper scoresheet ------------
+
+  /** The address a phone opens: the one this device used, unless that is this computer's own name. */
+  function phoneAddress(req) {
+    const host = String(req.headers.host || '');
+    if (!/^[A-Za-z0-9.:[\]-]+$/.test(host)) return null;
+    const base = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host) ? lanUrls()[0] : `http://${host}`;
+    return base ? `${base}/snap/` : null;
+  }
+
+  router.post('/phone/link', requireJudge, async (req, res) => {
+    const { code, expiresAt } = phones.newCode(req.judge.id, req.token);
+    const address = phoneAddress(req);
+    // The code travels after "#", so it never appears in a request line or a log.
+    const url = address && `${address}#${code}`;
+    const qr = url ? await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }) : null;
+    res.json({ code, expiresAt: new Date(expiresAt).toISOString(), address, url, qr });
+  });
+
+  router.get('/phone', requireJudge, (req, res) => {
+    res.json({ phone: phones.linkedPhone(req.judge.id) });
+  });
+
+  router.delete('/phone', requireJudge, (req, res) => {
+    phones.unlink(req.judge.id);
+    res.json({ ok: true });
+  });
+
+  /** The latest reading of a photo the judge's phone sent, waiting to be looked at. */
+  router.get('/scans/latest', requireJudge, (req, res) => {
+    const scan = phones.latest(req.judge.id);
+    res.json({
+      scan: scan && {
+        id: scan.id,
+        at: scan.at,
+        categoryId: scan.categoryId,
+        categoryName: scan.categoryName,
+        cells: scan.cells,
+        warnings: scan.warnings,
+        notes: scan.notes,
+        heading: scan.heading,
+      },
+    });
+  });
+
+  router.get('/scans/photo', requireJudge, (req, res) => {
+    const scan = phones.latest(req.judge.id);
+    if (!scan) throw new HttpError(404, 'There is no photo waiting.');
+    res.type(scan.photo.mediaType).send(scan.photo.data);
+  });
+
+  router.delete('/scans/latest', requireJudge, (req, res) => {
+    phones.dismiss(req.judge.id);
     res.json({ ok: true });
   });
 
